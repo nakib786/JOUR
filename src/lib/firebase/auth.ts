@@ -1,87 +1,15 @@
 import {
-  signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   signOut,
-  GoogleAuthProvider,
   User,
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   AuthError
 } from 'firebase/auth';
 import { auth } from '../firebase';
 
-// Google Auth Provider
-const googleProvider = new GoogleAuthProvider();
-googleProvider.addScope('email');
-googleProvider.addScope('profile');
-
 // Auth functions
-export async function signInWithGoogle(): Promise<User | null> {
-  try {
-    console.log('Attempting Google sign-in...');
-    console.log('Auth domain:', auth.app.options.authDomain);
-    console.log('Project ID:', auth.app.options.projectId);
-    
-    const result = await signInWithPopup(auth, googleProvider);
-    console.log('Google sign-in successful:', result.user.email);
-    return result.user;
-  } catch (error) {
-    const authError = error as AuthError;
-    console.error('Error signing in with Google:', {
-      code: authError.code,
-      message: authError.message,
-      customData: authError.customData,
-      stack: authError.stack
-    });
-    
-    // Handle specific error cases
-    if (authError.code === 'auth/popup-closed-by-user') {
-      throw new Error('Sign-in was cancelled. Please try again.');
-    } else if (authError.code === 'auth/popup-blocked') {
-      throw new Error('Popup was blocked by browser. Please allow popups and try again.');
-    } else if (authError.code === 'auth/network-request-failed') {
-      throw new Error('Network error. Please check your internet connection.');
-    } else if (authError.code === 'auth/unauthorized-domain') {
-      throw new Error('This domain is not authorized for Google sign-in. Please check Firebase console settings.');
-    } else if (authError.code === 'auth/operation-not-allowed') {
-      throw new Error('Google sign-in is not enabled. Please enable it in Firebase console.');
-    } else if (authError.code === 'auth/invalid-api-key') {
-      throw new Error('Invalid API key. Please check your Firebase configuration.');
-    }
-    
-    throw error;
-  }
-}
-
-// Alternative method using redirect (useful if popup is blocked)
-export async function signInWithGoogleRedirect(): Promise<void> {
-  try {
-    console.log('Attempting Google sign-in with redirect...');
-    await signInWithRedirect(auth, googleProvider);
-  } catch (error) {
-    const authError = error as AuthError;
-    console.error('Error with Google redirect sign-in:', authError);
-    throw error;
-  }
-}
-
-// Check for redirect result (call this on app initialization)
-export async function checkRedirectResult(): Promise<User | null> {
-  try {
-    const result = await getRedirectResult(auth);
-    if (result) {
-      console.log('Google redirect sign-in successful:', result.user.email);
-      return result.user;
-    }
-    return null;
-  } catch (error) {
-    const authError = error as AuthError;
-    console.error('Error with redirect result:', authError);
-    throw error;
-  }
-}
 
 export async function signInWithEmail(email: string, password: string): Promise<User | null> {
   try {
@@ -133,6 +61,33 @@ export async function signUpWithEmail(email: string, password: string): Promise<
       throw new Error('Password is too weak. Please use at least 6 characters.');
     } else if (authError.code === 'auth/invalid-email') {
       throw new Error('Invalid email address.');
+    }
+    
+    throw error;
+  }
+}
+
+export async function resetPassword(email: string): Promise<void> {
+  try {
+    console.log('Attempting password reset for:', email);
+    await sendPasswordResetEmail(auth, email);
+    console.log('Password reset email sent successfully');
+  } catch (error) {
+    const authError = error as AuthError;
+    console.error('Error sending password reset email:', {
+      code: authError.code,
+      message: authError.message
+    });
+    
+    // Handle specific error cases
+    if (authError.code === 'auth/user-not-found') {
+      throw new Error('No account found with this email address.');
+    } else if (authError.code === 'auth/invalid-email') {
+      throw new Error('Invalid email address.');
+    } else if (authError.code === 'auth/network-request-failed') {
+      throw new Error('Network error. Please check your internet connection.');
+    } else if (authError.code === 'auth/too-many-requests') {
+      throw new Error('Too many password reset requests. Please try again later.');
     }
     
     throw error;

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { User } from 'firebase/auth';
-import { onAuthStateChange, signInWithGoogle, signInWithGoogleRedirect, signInWithEmail, signUpWithEmail, logout } from '@/lib/firebase/auth';
+import { onAuthStateChange, signInWithEmail, signUpWithEmail, resetPassword, logout } from '@/lib/firebase/auth';
 import { getPosts, createPost } from '@/lib/firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { Post } from '@/types';
@@ -91,29 +91,21 @@ export default function DebugPage() {
     }
   };
 
-  const handleGoogleSignIn = async () => {
+  const handlePasswordReset = async () => {
     try {
       setError('');
-      addTestResult('Attempting Google sign-in...');
-      await signInWithGoogle();
-      addTestResult('Google sign-in successful');
+      if (!email) {
+        setError('Please enter your email address');
+        return;
+      }
+      addTestResult(`Attempting password reset for: ${email}`);
+      await resetPassword(email);
+      addTestResult('Password reset email sent successfully');
+      setError(''); // Clear any previous errors
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       setError(errorMessage);
-      addTestResult(`Google sign-in error: ${errorMessage}`);
-    }
-  };
-
-  const handleGoogleSignInRedirect = async () => {
-    try {
-      setError('');
-      addTestResult('Attempting Google sign-in with redirect...');
-      await signInWithGoogleRedirect();
-      addTestResult('Redirect initiated - you will be redirected to Google');
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      setError(errorMessage);
-      addTestResult(`Google redirect sign-in error: ${errorMessage}`);
+      addTestResult(`Password reset error: ${errorMessage}`);
     }
   };
 
@@ -210,51 +202,41 @@ export default function DebugPage() {
 
           {!user ? (
             <div className="space-y-4">
-              <button
-                onClick={handleGoogleSignIn}
-                className="bg-red-500 text-white px-4 py-2 rounded mr-4"
-              >
-                Sign in with Google (Popup)
-              </button>
-              
-              <button
-                onClick={handleGoogleSignInRedirect}
-                className="bg-orange-500 text-white px-4 py-2 rounded mr-4"
-              >
-                Sign in with Google (Redirect)
-              </button>
-              
-              <div className="border-t pt-4">
-                <h3 className="font-medium mb-2">Email Authentication</h3>
-                <div className="space-y-2">
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Email"
-                    className="border rounded px-3 py-2 w-full"
-                  />
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Password"
-                    className="border rounded px-3 py-2 w-full"
-                  />
-                  <div className="space-x-2">
-                    <button
-                      onClick={handleEmailSignIn}
-                      className="bg-blue-500 text-white px-4 py-2 rounded"
-                    >
-                      Sign In
-                    </button>
-                    <button
-                      onClick={handleEmailSignUp}
-                      className="bg-green-500 text-white px-4 py-2 rounded"
-                    >
-                      Sign Up
-                    </button>
-                  </div>
+              <h3 className="font-medium mb-2">Email Authentication</h3>
+              <div className="space-y-2">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Email"
+                  className="border rounded px-3 py-2 w-full"
+                />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Password"
+                  className="border rounded px-3 py-2 w-full"
+                />
+                <div className="space-x-2">
+                  <button
+                    onClick={handleEmailSignIn}
+                    className="bg-blue-500 text-white px-4 py-2 rounded"
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    onClick={handleEmailSignUp}
+                    className="bg-green-500 text-white px-4 py-2 rounded"
+                  >
+                    Sign Up
+                  </button>
+                  <button
+                    onClick={handlePasswordReset}
+                    className="bg-orange-500 text-white px-4 py-2 rounded"
+                  >
+                    Reset Password
+                  </button>
                 </div>
               </div>
             </div>
