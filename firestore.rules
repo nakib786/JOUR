@@ -1,0 +1,45 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow read access to all journal entries for everyone
+    // Allow write access only for authenticated users
+    match /journal_entries/{entryId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    
+    // Allow read/write access to comments for everyone (anonymous commenting)
+    match /comments/{commentId} {
+      allow read: if true;
+      allow write: if true;
+    }
+    
+    // Allow read/write access to user reactions for everyone (anonymous reactions)
+    match /userReactions/{reactionId} {
+      allow read: if true;
+      allow write: if true;
+    }
+    
+    // Allow read/write access to user reactions (new collection name)
+    match /user_reactions/{reactionId} {
+      allow read: if true;
+      allow write: if true;
+    }
+    
+    // Allow read/write access to trash collection only for authenticated users
+    match /trash/{trashId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Legacy posts collection (if you have any old data)
+    match /posts/{postId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    
+    // For development: Uncomment this to allow all operations (remove in production)
+    // match /{document=**} {
+    //   allow read, write: if true;
+    // }
+  }
+} 

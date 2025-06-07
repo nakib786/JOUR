@@ -1,0 +1,779 @@
+import {
+  collection,
+  doc,
+  getDocs,
+  getDoc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  where,
+  orderBy,
+  limit,
+  serverTimestamp,
+  QueryConstraint,
+  FirestoreError,
+  setDoc,
+  FieldValue
+} from 'firebase/firestore';
+import { db } from '../firebase';
+import { Post, Comment, TrashItem } from '@/types';
+
+// Posts Collection - Updated to match your existing collection
+const POSTS_COLLECTION = 'journal_entries';
+const COMMENTS_COLLECTION = 'comments';
+const TRASH_COLLECTION = 'trash';
+const USER_REACTIONS_COLLECTION = 'user_reactions';
+
+// Trash retention period (12 months in milliseconds)
+const TRASH_RETENTION_PERIOD = 12 * 30 * 24 * 60 * 60 * 1000; // 12 months
+
+// Post operations
+export async function createPost(postData: Omit<Post, 'id' | 'createdAt' | 'updatedAt' | 'reactions'>): Promise<string> {
+  try {
+    console.log('Creating post:', postData.title);
+    const docRef = await addDoc(collection(db, POSTS_COLLECTION), {
+      ...postData,
+      reactions: {
+        like: 0,
+        love: 0,
+        laugh: 0,
+        wow: 0,
+        sad: 0,
+        angry: 0,
+      },
+      shareCount: 0,
+      commentCount: 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    console.log('Post created successfully with ID:', docRef.id);
+    return docRef.id;
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error creating post:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    
+    if (firestoreError.code === 'permission-denied') {
+      throw new Error('You do not have permission to create posts. Please check your authentication.');
+    } else if (firestoreError.code === 'unavailable') {
+      throw new Error('Firestore is currently unavailable. Please try again later.');
+    }
+    
+    throw error;
+  }
+}
+
+export async function getPosts(filters?: {
+  tags?: string[];
+  searchQuery?: string;
+  limitCount?: number;
+}): Promise<Post[]> {
+  try {
+    console.log('Fetching posts with filters:', filters);
+    console.log('Using collection:', POSTS_COLLECTION);
+    
+    // Try to get posts without ordering first to avoid index issues
+    let q;
+    try {
+      const constraints: QueryConstraint[] = [orderBy('createdAt', 'desc')];
+      
+      if (filters?.limitCount) {
+        constraints.push(limit(filters.limitCount));
+      }
+      
+      q = query(collection(db, POSTS_COLLECTION), ...constraints);
+    } catch (indexError) {
+      console.warn('Ordered query failed, trying simple query:', indexError);
+      // Fallback to simple query without ordering
+      q = query(collection(db, POSTS_COLLECTION), ...(filters?.limitCount ? [limit(filters.limitCount)] : []));
+    }
+    
+    console.log('Executing Firestore query...');
+    const querySnapshot = await getDocs(q);
+    
+    console.log(`Found ${querySnapshot.docs.length} posts in Firestore`);
+    
+    let posts = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      console.log('Processing post:', doc.id, data.title || 'No title');
+      return {
+        id: doc.id,
+        ...data,
+        // Handle different date field formats
+        date: data.date?.toDate?.() || data.date || new Date(),
+        createdAt: data.createdAt?.toDate?.() || data.createdAt || new Date(),
+        updatedAt: data.updatedAt?.toDate?.() || data.updatedAt || new Date(),
+        // Ensure required fields exist
+        title: data.title || 'Untitled',
+        content: data.content || '',
+        tags: data.tags || [],
+        reactions: data.reactions || { like: 0, love: 0, laugh: 0, wow: 0, sad: 0, angry: 0 },
+        mood: data.mood || 'neutral',
+        shareCount: data.shareCount || 0,
+        commentCount: data.commentCount || 0
+      };
+    }) as Post[];
+
+    // Sort manually if we couldn't use orderBy
+    posts.sort((a, b) => {
+      const dateA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
+      const dateB = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
+      return dateB.getTime() - dateA.getTime();
+    });
+
+    // Client-side filtering for complex queries
+    if (filters?.tags && filters.tags.length > 0) {
+      const originalCount = posts.length;
+      posts = posts.filter(post => 
+        filters.tags!.some(tag => post.tags.includes(tag))
+      );
+      console.log(`Filtered by tags: ${originalCount} -> ${posts.length} posts`);
+    }
+
+    if (filters?.searchQuery) {
+      const originalCount = posts.length;
+      const searchLower = filters.searchQuery.toLowerCase();
+      posts = posts.filter(post =>
+        post.title.toLowerCase().includes(searchLower) ||
+        post.content.toLowerCase().includes(searchLower) ||
+        post.tags.some(tag => tag.toLowerCase().includes(searchLower))
+      );
+      console.log(`Filtered by search: ${originalCount} -> ${posts.length} posts`);
+    }
+
+    console.log(`Returning ${posts.length} posts`);
+    return posts;
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error getting posts:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    
+    if (firestoreError.code === 'permission-denied') {
+      console.warn('Permission denied for reading posts. This might be due to Firestore security rules.');
+      throw new Error('Unable to fetch posts. Please check your permissions.');
+    } else if (firestoreError.code === 'unavailable') {
+      throw new Error('Firestore is currently unavailable. Please try again later.');
+    }
+    
+    throw error;
+  }
+}
+
+export async function getPost(id: string): Promise<Post | null> {
+  try {
+    console.log('Fetching post with ID:', id);
+    const docRef = doc(db, POSTS_COLLECTION, id);
+    const docSnap = await getDoc(docRef);
+    
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      console.log('Post found:', data.title);
+      return {
+        id: docSnap.id,
+        ...data,
+        date: data.date?.toDate?.() || data.date || new Date(),
+        createdAt: data.createdAt?.toDate?.() || data.createdAt || new Date(),
+        updatedAt: data.updatedAt?.toDate?.() || data.updatedAt || new Date(),
+      } as Post;
+    }
+    
+    console.log('Post not found');
+    return null;
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error getting post:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    throw error;
+  }
+}
+
+export async function updatePost(id: string, updates: Partial<Post>): Promise<void> {
+  try {
+    console.log('Updating post:', id);
+    const docRef = doc(db, POSTS_COLLECTION, id);
+    await updateDoc(docRef, {
+      ...updates,
+      updatedAt: serverTimestamp(),
+    });
+    console.log('Post updated successfully');
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error updating post:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    throw error;
+  }
+}
+
+export async function deletePost(id: string): Promise<void> {
+  try {
+    console.log('Deleting post:', id);
+    const docRef = doc(db, POSTS_COLLECTION, id);
+    await deleteDoc(docRef);
+    console.log('Post deleted successfully');
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error deleting post:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    throw error;
+  }
+}
+
+// Trash/Bin functionality
+export async function movePostToTrash(id: string, deletedBy?: string): Promise<void> {
+  try {
+    console.log('Moving post to trash:', id);
+    
+    // Get the post data first
+    const postDoc = await getDoc(doc(db, POSTS_COLLECTION, id));
+    if (!postDoc.exists()) {
+      throw new Error('Post not found');
+    }
+    
+    const postData = { id: postDoc.id, ...postDoc.data() } as Post;
+    
+    // Create trash item
+    const trashItem: Omit<TrashItem, 'id'> = {
+      type: 'post',
+      title: postData.title,
+      content: postData.content,
+      deletedAt: new Date(),
+      deletedBy,
+      originalId: id,
+      expiresAt: new Date(Date.now() + TRASH_RETENTION_PERIOD),
+      metadata: {
+        tags: postData.tags,
+        mood: postData.mood,
+        reactions: postData.reactions
+      }
+    };
+    
+    // Add to trash collection
+    await addDoc(collection(db, TRASH_COLLECTION), {
+      ...trashItem,
+      deletedAt: serverTimestamp(),
+      expiresAt: new Date(Date.now() + TRASH_RETENTION_PERIOD)
+    });
+    
+    // Delete from original collection
+    await deleteDoc(doc(db, POSTS_COLLECTION, id));
+    
+    console.log('Post moved to trash successfully');
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error moving post to trash:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    throw error;
+  }
+}
+
+export async function moveCommentToTrash(id: string, deletedBy?: string): Promise<void> {
+  try {
+    console.log('Moving comment to trash:', id);
+    
+    // Get the comment data first
+    const commentDoc = await getDoc(doc(db, COMMENTS_COLLECTION, id));
+    if (!commentDoc.exists()) {
+      throw new Error('Comment not found');
+    }
+    
+    const commentData = { id: commentDoc.id, ...commentDoc.data() } as Comment;
+    
+    // Create trash item
+    const trashItem: Omit<TrashItem, 'id'> = {
+      type: 'comment',
+      title: `Comment on post ${commentData.postId}`,
+      content: commentData.text,
+      deletedAt: new Date(),
+      deletedBy,
+      originalId: id,
+      expiresAt: new Date(Date.now() + TRASH_RETENTION_PERIOD),
+      metadata: {
+        postId: commentData.postId,
+        reactions: commentData.reactions
+      }
+    };
+    
+    // Add to trash collection
+    await addDoc(collection(db, TRASH_COLLECTION), {
+      ...trashItem,
+      deletedAt: serverTimestamp(),
+      expiresAt: new Date(Date.now() + TRASH_RETENTION_PERIOD)
+    });
+    
+    // Delete from original collection
+    await deleteDoc(doc(db, COMMENTS_COLLECTION, id));
+    
+    console.log('Comment moved to trash successfully');
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error moving comment to trash:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    throw error;
+  }
+}
+
+export async function restorePostFromTrash(trashId: string): Promise<void> {
+  try {
+    console.log('Restoring post from trash:', trashId);
+    
+    // Get the trash item
+    const trashDoc = await getDoc(doc(db, TRASH_COLLECTION, trashId));
+    if (!trashDoc.exists()) {
+      throw new Error('Trash item not found');
+    }
+    
+    const trashData = { id: trashDoc.id, ...trashDoc.data() } as TrashItem;
+    
+    if (trashData.type !== 'post') {
+      throw new Error('Invalid trash item type for post restoration');
+    }
+    
+    // Recreate the post
+    const postData: Omit<Post, 'id'> = {
+      title: trashData.title,
+      content: trashData.content,
+      date: new Date(), // Use current date for restored posts
+      tags: trashData.metadata?.tags || [],
+      mood: trashData.metadata?.mood || '',
+      reactions: trashData.metadata?.reactions || {
+        like: 0, love: 0, laugh: 0, wow: 0, sad: 0, angry: 0
+      },
+      shareCount: 0,
+      commentCount: 0,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    // Add back to posts collection
+    await addDoc(collection(db, POSTS_COLLECTION), {
+      ...postData,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    
+    // Remove from trash
+    await deleteDoc(doc(db, TRASH_COLLECTION, trashId));
+    
+    console.log('Post restored successfully');
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error restoring post from trash:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    throw error;
+  }
+}
+
+export async function restoreCommentFromTrash(trashId: string): Promise<void> {
+  try {
+    console.log('Restoring comment from trash:', trashId);
+    
+    // Get the trash item
+    const trashDoc = await getDoc(doc(db, TRASH_COLLECTION, trashId));
+    if (!trashDoc.exists()) {
+      throw new Error('Trash item not found');
+    }
+    
+    const trashData = { id: trashDoc.id, ...trashDoc.data() } as TrashItem;
+    
+    if (trashData.type !== 'comment') {
+      throw new Error('Invalid trash item type for comment restoration');
+    }
+    
+    // Check if the original post still exists
+    if (trashData.metadata?.postId) {
+      const postDoc = await getDoc(doc(db, POSTS_COLLECTION, trashData.metadata.postId));
+      if (!postDoc.exists()) {
+        throw new Error('Cannot restore comment: original post no longer exists');
+      }
+    }
+    
+    // Recreate the comment
+    const commentData: Omit<Comment, 'id'> = {
+      postId: trashData.metadata?.postId || '',
+      text: trashData.content,
+      createdAt: new Date(),
+      ipHash: 'restored',
+      reactions: trashData.metadata?.reactions || {
+        like: 0, love: 0, laugh: 0, wow: 0, sad: 0, angry: 0
+      }
+    };
+    
+    // Add back to comments collection
+    await addDoc(collection(db, COMMENTS_COLLECTION), {
+      ...commentData,
+      createdAt: serverTimestamp()
+    });
+    
+    // Remove from trash
+    await deleteDoc(doc(db, TRASH_COLLECTION, trashId));
+    
+    console.log('Comment restored successfully');
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error restoring comment from trash:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    throw error;
+  }
+}
+
+export async function getTrashItems(): Promise<TrashItem[]> {
+  try {
+    console.log('Fetching trash items');
+    const q = query(
+      collection(db, TRASH_COLLECTION),
+      orderBy('deletedAt', 'desc')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const trashItems: TrashItem[] = [];
+    
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      trashItems.push({
+        id: doc.id,
+        ...data,
+        deletedAt: data.deletedAt?.toDate() || new Date(),
+        expiresAt: data.expiresAt?.toDate() || new Date()
+      } as TrashItem);
+    });
+    
+    console.log(`Fetched ${trashItems.length} trash items`);
+    return trashItems;
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error fetching trash items:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    throw error;
+  }
+}
+
+export async function permanentlyDeleteTrashItem(trashId: string): Promise<void> {
+  try {
+    console.log('Permanently deleting trash item:', trashId);
+    await deleteDoc(doc(db, TRASH_COLLECTION, trashId));
+    console.log('Trash item permanently deleted');
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error permanently deleting trash item:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    throw error;
+  }
+}
+
+export async function cleanupExpiredTrashItems(): Promise<number> {
+  try {
+    console.log('Cleaning up expired trash items');
+    const now = new Date();
+    const q = query(
+      collection(db, TRASH_COLLECTION),
+      where('expiresAt', '<=', now)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    let deletedCount = 0;
+    
+    const deletePromises = querySnapshot.docs.map(async (doc) => {
+      await deleteDoc(doc.ref);
+      deletedCount++;
+    });
+    
+    await Promise.all(deletePromises);
+    
+    console.log(`Cleaned up ${deletedCount} expired trash items`);
+    return deletedCount;
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error cleaning up expired trash items:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    throw error;
+  }
+}
+
+// Test database connection
+export async function testDatabaseConnection(): Promise<boolean> {
+  try {
+    console.log('Testing database connection...');
+    // Just test that we can create a collection reference
+    collection(db, 'test');
+    console.log('Database connection test successful');
+    return true;
+  } catch (error) {
+    console.error('Database connection test failed:', error);
+    return false;
+  }
+}
+
+// Comment operations
+export async function createComment(commentData: Omit<Comment, 'id' | 'createdAt' | 'reactions'>): Promise<string> {
+  try {
+    console.log('Creating comment for post:', commentData.postId);
+    const docRef = await addDoc(collection(db, COMMENTS_COLLECTION), {
+      ...commentData,
+      reactions: {
+        like: 0,
+        love: 0,
+        laugh: 0,
+        wow: 0,
+        sad: 0,
+        angry: 0,
+      },
+      createdAt: serverTimestamp(),
+    });
+    console.log('Comment created successfully');
+    return docRef.id;
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error creating comment:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    throw error;
+  }
+}
+
+export async function getCommentsByPostId(postId: string): Promise<Comment[]> {
+  try {
+    console.log('Fetching comments for post:', postId);
+    console.log('Using comments collection:', COMMENTS_COLLECTION);
+    console.log('Database instance:', db);
+    
+    // Start with the simplest possible query
+    console.log('Creating simple query without ordering...');
+    const q = query(
+      collection(db, COMMENTS_COLLECTION),
+      where('postId', '==', postId)
+    );
+    
+    console.log('Executing query...');
+    const querySnapshot = await getDocs(q);
+    console.log('Query executed successfully, processing results...');
+    
+    const comments = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      console.log('Processing comment doc:', doc.id, data);
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate?.() || data.createdAt || new Date(),
+        reactions: data.reactions || {
+          like: 0,
+          love: 0,
+          laugh: 0,
+          wow: 0,
+          sad: 0,
+          angry: 0,
+        },
+      };
+    }) as Comment[];
+    
+    // Sort manually by creation date
+    comments.sort((a, b) => {
+      const dateA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
+      const dateB = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
+      return dateB.getTime() - dateA.getTime();
+    });
+    
+    console.log(`Found ${comments.length} comments for post ${postId}`);
+    return comments;
+  } catch (error) {
+    console.error('Error getting comments:', error);
+    
+    // Check if it's a FirestoreError
+    if (error && typeof error === 'object' && 'code' in error) {
+      const firestoreError = error as FirestoreError;
+      console.error('Firestore error details:', {
+        code: firestoreError.code,
+        message: firestoreError.message
+      });
+      
+      if (firestoreError.code === 'permission-denied') {
+        console.warn('Permission denied for reading comments. Check Firestore security rules.');
+        throw new Error('Unable to fetch comments. Please check your permissions.');
+      } else if (firestoreError.code === 'failed-precondition') {
+        console.warn('Missing index for comments query. Creating simple query fallback.');
+        // Return empty array for now
+        return [];
+      }
+    }
+    
+    // For any other error, return empty array to prevent UI crashes
+    console.warn('Returning empty comments array due to error');
+    return [];
+  }
+}
+
+export async function updateComment(id: string, updates: Partial<Comment>): Promise<void> {
+  try {
+    console.log('Updating comment:', id);
+    const docRef = doc(db, COMMENTS_COLLECTION, id);
+    await updateDoc(docRef, {
+      ...updates,
+      updatedAt: serverTimestamp(),
+    });
+    console.log('Comment updated successfully');
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error updating comment:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    throw error;
+  }
+}
+
+export async function deleteComment(id: string): Promise<void> {
+  try {
+    console.log('Deleting comment:', id);
+    const docRef = doc(db, COMMENTS_COLLECTION, id);
+    await deleteDoc(docRef);
+    console.log('Comment deleted successfully');
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error deleting comment:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    throw error;
+  }
+}
+
+// Reaction operations
+export async function updatePostReactions(postId: string, reactions: { like: number; love: number; laugh: number; wow: number; sad: number; angry: number }): Promise<void> {
+  try {
+    console.log('Updating reactions for post:', postId);
+    const docRef = doc(db, POSTS_COLLECTION, postId);
+    await updateDoc(docRef, { reactions });
+    console.log('Reactions updated successfully');
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error updating reactions:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    throw error;
+  }
+}
+
+// Comment reaction operations
+export async function updateCommentReactions(commentId: string, reactions: { like: number; love: number; laugh: number; wow: number; sad: number; angry: number }): Promise<void> {
+  try {
+    console.log('Updating reactions for comment:', commentId);
+    const docRef = doc(db, COMMENTS_COLLECTION, commentId);
+    await updateDoc(docRef, { reactions });
+    console.log('Comment reactions updated successfully');
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error updating comment reactions:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    throw error;
+  }
+}
+
+// User reaction tracking (to prevent multiple reactions from same user)
+export async function getUserReaction(userId: string, postId?: string, commentId?: string): Promise<string | null> {
+  try {
+    const identifier = postId ? `post_${postId}` : `comment_${commentId}`;
+    const docRef = doc(db, USER_REACTIONS_COLLECTION, `${userId}_${identifier}`);
+    const docSnap = await getDoc(docRef);
+    
+    if (docSnap.exists()) {
+      return docSnap.data().reactionType;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting user reaction:', error);
+    return null;
+  }
+}
+
+export async function setUserReaction(userId: string, reactionType: string, postId?: string, commentId?: string): Promise<void> {
+  try {
+    const identifier = postId ? `post_${postId}` : `comment_${commentId}`;
+    const docRef = doc(db, USER_REACTIONS_COLLECTION, `${userId}_${identifier}`);
+    
+    // Only include fields that have values to avoid undefined values in Firestore
+    const reactionData: {
+      userId: string;
+      reactionType: string;
+      createdAt: FieldValue;
+      postId?: string;
+      commentId?: string;
+    } = {
+      userId,
+      reactionType,
+      createdAt: serverTimestamp(),
+    };
+    
+    if (postId) {
+      reactionData.postId = postId;
+    }
+    
+    if (commentId) {
+      reactionData.commentId = commentId;
+    }
+    
+    await setDoc(docRef, reactionData);
+  } catch (error) {
+    console.error('Error setting user reaction:', error);
+    throw error;
+  }
+}
+
+export async function removeUserReaction(userId: string, postId?: string, commentId?: string): Promise<void> {
+  try {
+    const identifier = postId ? `post_${postId}` : `comment_${commentId}`;
+    const docRef = doc(db, USER_REACTIONS_COLLECTION, `${userId}_${identifier}`);
+    await deleteDoc(docRef);
+  } catch (error) {
+    console.error('Error removing user reaction:', error);
+    throw error;
+  }
+}
+
+// Share count operations
+export async function incrementShareCount(postId: string): Promise<void> {
+  try {
+    console.log('Incrementing share count for post:', postId);
+    const docRef = doc(db, POSTS_COLLECTION, postId);
+    const docSnap = await getDoc(docRef);
+    
+    if (docSnap.exists()) {
+      const currentData = docSnap.data();
+      const currentShareCount = currentData.shareCount || 0;
+      await updateDoc(docRef, { 
+        shareCount: currentShareCount + 1 
+      });
+      console.log('Share count incremented successfully');
+    }
+  } catch (error) {
+    console.error('Error incrementing share count:', error);
+    throw error;
+  }
+} 
