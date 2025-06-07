@@ -5,6 +5,7 @@ import { Post, Comment } from '@/types';
 import { Heart, MessageCircle, Calendar, Tag, Expand } from 'lucide-react';
 import { format } from 'date-fns';
 import { updatePostReactions, createComment, getCommentsByPostId, getUserReaction, setUserReaction, removeUserReaction, incrementShareCount } from '@/lib/firebase/firestore';
+import { formatRichText } from '@/lib/richTextFormatter';
 import { ReactionBar } from './ReactionButton';
 import { CommentCard } from './CommentCard';
 import { SocialShare } from './SocialShare';
@@ -194,8 +195,11 @@ export function PostCard({ post }: PostCardProps) {
   };
 
   const formatContent = (content: string) => {
-    // Convert hashtags to styled spans
-    return content.replace(/#(\w+)/g, '<span class="text-rose-600 dark:text-rose-400 font-medium">#$1</span>');
+    return formatRichText(content, { 
+      allowMarkdown: true, 
+      allowCustomFormatting: true,
+      context: 'full'
+    });
   };
 
   return (

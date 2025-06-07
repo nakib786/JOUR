@@ -9,6 +9,7 @@ import { ReactionBar } from './ReactionButton';
 import { CommentCard } from './CommentCard';
 import { SocialShare } from './SocialShare';
 import { updatePostReactions, createComment, getCommentsByPostId, getUserReaction, setUserReaction, removeUserReaction, incrementShareCount } from '@/lib/firebase/firestore';
+import { formatRichText } from '@/lib/richTextFormatter';
 
 interface PostModalProps {
   post: Post | null;
@@ -220,7 +221,11 @@ export function PostModal({ post, isOpen, onClose }: PostModalProps) {
   };
 
   const formatContent = (content: string) => {
-    return content.replace(/#(\w+)/g, '<span class="text-rose-600 dark:text-rose-400 font-medium">#$1</span>');
+    return formatRichText(content, { 
+      allowMarkdown: true, 
+      allowCustomFormatting: true,
+      context: 'full'
+    });
   };
 
   if (!isOpen || !post) return null;

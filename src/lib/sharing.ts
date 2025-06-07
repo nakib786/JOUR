@@ -1,4 +1,5 @@
 import { Post, Comment } from '@/types';
+import { extractPlainText } from './richTextFormatter';
 
 export interface ShareContent {
   title: string;
@@ -16,10 +17,7 @@ export function generatePostShareContent(post: Post, baseUrl?: string): ShareCon
     (typeof window !== 'undefined' ? `${window.location.origin}/post/${post.id}` : '');
   
   // Clean and optimize content for sharing
-  const cleanContent = post.content
-    .replace(/<[^>]*>/g, '') // Remove HTML tags
-    .replace(/\s+/g, ' ') // Normalize whitespace
-    .trim();
+  const cleanContent = extractPlainText(post.content);
   
   // Generate description with optimal length for social media
   const description = cleanContent.length > 280 
@@ -49,10 +47,7 @@ export function generateCommentShareContent(comment: Comment, baseUrl?: string):
   const url = baseUrl ? `${baseUrl}/comment/${comment.id}` : 
     (typeof window !== 'undefined' ? `${window.location.origin}/comment/${comment.id}` : '');
   
-  const cleanContent = comment.text
-    .replace(/<[^>]*>/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const cleanContent = extractPlainText(comment.text);
   
   const title = cleanContent.length > 50 
     ? `"${cleanContent.substring(0, 47)}..."` 

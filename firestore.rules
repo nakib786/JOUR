@@ -15,12 +15,6 @@ service cloud.firestore {
     }
     
     // Allow read/write access to user reactions for everyone (anonymous reactions)
-    match /userReactions/{reactionId} {
-      allow read: if true;
-      allow write: if true;
-    }
-    
-    // Allow read/write access to user reactions (new collection name)
     match /user_reactions/{reactionId} {
       allow read: if true;
       allow write: if true;

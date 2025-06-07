@@ -41,6 +41,7 @@ import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { AuthTurnstile, type AuthTurnstileRef } from '@/components/AuthTurnstile';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import { formatRichText } from '@/lib/richTextFormatter';
 
 // Dynamically import the markdown editor to avoid SSR issues
 const MDEditor = dynamic(
@@ -623,92 +624,15 @@ export default function AdminPage() {
     }
   };
 
-  const formatContent = (content: string) => {
-    let formatted = content;
-    
-    // Convert line breaks to HTML
-    formatted = formatted.replace(/\n/g, '<br>');
-    
-    // Format hashtags
-    formatted = formatted.replace(/#(\w+)/g, '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-rose-100 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300 mr-1">#$1</span>');
-    
-    // Format mentions (@username)
-    formatted = formatted.replace(/@(\w+)/g, '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 mr-1">@$1</span>');
-    
-    // Format bold text (**text**)
-    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-gray-900 dark:text-white">$1</strong>');
-    
-    // Format italic text (*text*)
-    formatted = formatted.replace(/\*(.*?)\*/g, '<em class="italic text-gray-800 dark:text-gray-200">$1</em>');
-    
-    // Format quotes ("text")
-    formatted = formatted.replace(/"([^"]+)"/g, '<span class="italic text-gray-700 dark:text-gray-300 border-l-2 border-gray-300 dark:border-gray-600 pl-2 ml-2">"$1"</span>');
-    
-    // Format URLs
-    formatted = formatted.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline">$1</a>');
-    
-    // Format email addresses
-    formatted = formatted.replace(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g, '<a href="mailto:$1" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline">$1</a>');
-    
-    // Format phone numbers (basic pattern)
-    formatted = formatted.replace(/(\+?[\d\s\-\(\)]{10,})/g, '<span class="font-mono text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-1 rounded">$1</span>');
-    
-    // Format time stamps (HH:MM format)
-    formatted = formatted.replace(/\b(\d{1,2}:\d{2}(?:\s?[AaPp][Mm])?)\b/g, '<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">🕐 $1</span>');
-    
-    // Format dates (DD/MM/YYYY or DD-MM-YYYY)
-    formatted = formatted.replace(/\b(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})\b/g, '<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">📅 $1</span>');
-    
-    // Format emotions/emojis in text
-    const emotionMap: Record<string, string> = {
-      ':)': '😊',
-      ':-)': '😊',
-      ':(': '😢',
-      ':-(': '😢',
-      ':D': '😃',
-      ':-D': '😃',
-      ';)': '😉',
-      ';-)': '😉',
-      ':P': '😛',
-      ':-P': '😛',
-      ':o': '😮',
-      ':-o': '😮',
-      '<3': '❤️',
-      '</3': '💔'
-    };
-    
-    Object.entries(emotionMap).forEach(([text, emoji]) => {
-      const escapedText = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      formatted = formatted.replace(new RegExp(`\\b${escapedText}\\b`, 'g'), emoji);
-    });
-    
-    // Format numbered lists
-    formatted = formatted.replace(/^(\d+)\.\s(.+)$/gm, '<div class="flex items-start gap-2 my-1"><span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs font-medium">$1</span><span>$2</span></div>');
-    
-    // Format bullet points
-    formatted = formatted.replace(/^[\-\*]\s(.+)$/gm, '<div class="flex items-start gap-2 my-1"><span class="text-gray-500 dark:text-gray-400 mt-1">•</span><span>$1</span></div>');
-    
-    return formatted;
-  };
 
-  // Enhanced content preview for different contexts
-  const getContentPreview = (content: string, maxLength: number = 150) => {
-    const plainText = content.replace(/<[^>]*>/g, '').replace(/\n/g, ' ');
-    if (plainText.length <= maxLength) return plainText;
-    return plainText.substring(0, maxLength).trim() + '...';
-  };
 
   // Format content for different display contexts
   const formatContentForContext = (content: string, context: 'preview' | 'full' | 'card') => {
-    switch (context) {
-      case 'preview':
-        return getContentPreview(content, 200);
-      case 'card':
-        return getContentPreview(content, 100);
-      case 'full':
-      default:
-        return formatContent(content);
-    }
+    return formatRichText(content, { 
+      allowMarkdown: true, 
+      allowCustomFormatting: true,
+      context
+    });
   };
 
   const getAnalytics = () => {
