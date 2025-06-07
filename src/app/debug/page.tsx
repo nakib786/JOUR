@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { User } from 'firebase/auth';
-import { onAuthStateChange, signInWithGoogle, signInWithEmail, signUpWithEmail, logout } from '@/lib/firebase/auth';
+import { onAuthStateChange, signInWithGoogle, signInWithGoogleRedirect, signInWithEmail, signUpWithEmail, logout } from '@/lib/firebase/auth';
 import { getPosts, createPost } from '@/lib/firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { Post } from '@/types';
@@ -104,6 +104,19 @@ export default function DebugPage() {
     }
   };
 
+  const handleGoogleSignInRedirect = async () => {
+    try {
+      setError('');
+      addTestResult('Attempting Google sign-in with redirect...');
+      await signInWithGoogleRedirect();
+      addTestResult('Redirect initiated - you will be redirected to Google');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      setError(errorMessage);
+      addTestResult(`Google redirect sign-in error: ${errorMessage}`);
+    }
+  };
+
   const handleEmailSignIn = async () => {
     try {
       setError('');
@@ -201,7 +214,14 @@ export default function DebugPage() {
                 onClick={handleGoogleSignIn}
                 className="bg-red-500 text-white px-4 py-2 rounded mr-4"
               >
-                Sign in with Google
+                Sign in with Google (Popup)
+              </button>
+              
+              <button
+                onClick={handleGoogleSignInRedirect}
+                className="bg-orange-500 text-white px-4 py-2 rounded mr-4"
+              >
+                Sign in with Google (Redirect)
               </button>
               
               <div className="border-t pt-4">

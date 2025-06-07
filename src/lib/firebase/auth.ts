@@ -1,5 +1,7 @@
 import {
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut,
   GoogleAuthProvider,
   User,
@@ -19,6 +21,9 @@ googleProvider.addScope('profile');
 export async function signInWithGoogle(): Promise<User | null> {
   try {
     console.log('Attempting Google sign-in...');
+    console.log('Auth domain:', auth.app.options.authDomain);
+    console.log('Project ID:', auth.app.options.projectId);
+    
     const result = await signInWithPopup(auth, googleProvider);
     console.log('Google sign-in successful:', result.user.email);
     return result.user;
@@ -27,7 +32,8 @@ export async function signInWithGoogle(): Promise<User | null> {
     console.error('Error signing in with Google:', {
       code: authError.code,
       message: authError.message,
-      customData: authError.customData
+      customData: authError.customData,
+      stack: authError.stack
     });
     
     // Handle specific error cases
@@ -37,8 +43,42 @@ export async function signInWithGoogle(): Promise<User | null> {
       throw new Error('Popup was blocked by browser. Please allow popups and try again.');
     } else if (authError.code === 'auth/network-request-failed') {
       throw new Error('Network error. Please check your internet connection.');
+    } else if (authError.code === 'auth/unauthorized-domain') {
+      throw new Error('This domain is not authorized for Google sign-in. Please check Firebase console settings.');
+    } else if (authError.code === 'auth/operation-not-allowed') {
+      throw new Error('Google sign-in is not enabled. Please enable it in Firebase console.');
+    } else if (authError.code === 'auth/invalid-api-key') {
+      throw new Error('Invalid API key. Please check your Firebase configuration.');
     }
     
+    throw error;
+  }
+}
+
+// Alternative method using redirect (useful if popup is blocked)
+export async function signInWithGoogleRedirect(): Promise<void> {
+  try {
+    console.log('Attempting Google sign-in with redirect...');
+    await signInWithRedirect(auth, googleProvider);
+  } catch (error) {
+    const authError = error as AuthError;
+    console.error('Error with Google redirect sign-in:', authError);
+    throw error;
+  }
+}
+
+// Check for redirect result (call this on app initialization)
+export async function checkRedirectResult(): Promise<User | null> {
+  try {
+    const result = await getRedirectResult(auth);
+    if (result) {
+      console.log('Google redirect sign-in successful:', result.user.email);
+      return result.user;
+    }
+    return null;
+  } catch (error) {
+    const authError = error as AuthError;
+    console.error('Error with redirect result:', authError);
     throw error;
   }
 }
