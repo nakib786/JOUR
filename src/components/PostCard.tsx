@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Post, Comment } from '@/types';
 import { Heart, MessageCircle, Calendar, Tag, Expand } from 'lucide-react';
 import { format } from 'date-fns';
-import { updatePostReactions, createComment, getCommentsByPostId, getUserReaction, setUserReaction, removeUserReaction, incrementShareCount } from '@/lib/firebase/firestore';
+import { updatePostReactions, createComment, getCommentsByPostId, getUserReaction, setUserReaction, removeUserReaction, incrementShareCount, syncCommentCount, syncReactionCounts } from '@/lib/firebase/firestore';
 import { formatRichText } from '@/lib/richTextFormatter';
 import { ReactionBar } from './ReactionButton';
 import { CommentCard } from './CommentCard';
@@ -26,6 +26,7 @@ export function PostCard({ post }: PostCardProps) {
   const [loadingComments, setLoadingComments] = useState(false);
   const [commentsLoaded, setCommentsLoaded] = useState(false);
   const [shareCount, setShareCount] = useState(post.shareCount || 0);
+  const [commentCount, setCommentCount] = useState(post.commentCount || 0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [userId] = useState(() => {
     // Generate a simple user ID based on browser fingerprint
@@ -55,6 +56,16 @@ export function PostCard({ post }: PostCardProps) {
     loadUserReaction();
   }, [userId, post.id]);
 
+  // Sync comment count when post changes
+  useEffect(() => {
+    setCommentCount(post.commentCount || 0);
+  }, [post.commentCount]);
+
+  // Sync reactions when post changes
+  useEffect(() => {
+    setReactions(post.reactions);
+  }, [post.reactions]);
+
   // Load comments when comments section is opened
   useEffect(() => {
     if (showComments && !commentsLoaded) {
@@ -65,20 +76,21 @@ export function PostCard({ post }: PostCardProps) {
   const loadComments = async () => {
     try {
       setLoadingComments(true);
-      console.log('Loading comments for post:', post.id);
-      
-      // Test database connection first
-      const { testDatabaseConnection } = await import('../lib/firebase/firestore');
-      const connectionOk = await testDatabaseConnection();
-      console.log('Database connection test result:', connectionOk);
-      
       const fetchedComments = await getCommentsByPostId(post.id);
-      console.log('Fetched comments:', fetchedComments);
       setComments(fetchedComments);
       setCommentsLoaded(true);
+      
+      // Sync comment count with actual number of comments
+      try {
+        const actualCount = await syncCommentCount(post.id);
+        setCommentCount(actualCount);
+      } catch (syncError) {
+        console.error('Error syncing comment count:', syncError);
+        // Fallback to using the fetched comments length
+        setCommentCount(fetchedComments.length);
+      }
     } catch (error) {
       console.error('Error loading comments:', error);
-      // Set empty array on error to prevent UI issues
       setComments([]);
       setCommentsLoaded(true);
     } finally {
@@ -91,27 +103,40 @@ export function PostCard({ post }: PostCardProps) {
     
     try {
       setIsUpdatingReaction(true);
-      const newReactions = { ...reactions };
       
       if (userReaction === type) {
         // Remove reaction
-        newReactions[type] = Math.max(0, newReactions[type] - 1);
         setUserReactionState(null);
         await removeUserReaction(userId, post.id);
       } else {
-        // Add new reaction, remove old one if exists
-        if (userReaction) {
-          newReactions[userReaction as keyof typeof newReactions] = Math.max(0, newReactions[userReaction as keyof typeof newReactions] - 1);
-        }
-        newReactions[type]++;
+        // Add new reaction (this will automatically remove old one if exists)
         setUserReactionState(type);
         await setUserReaction(userId, type, post.id);
       }
       
-      setReactions(newReactions);
-      
-      // Update in Firebase
-      await updatePostReactions(post.id, newReactions);
+      // Sync reaction counts from the database to ensure accuracy
+      try {
+        const syncedReactions = await syncReactionCounts(post.id);
+        setReactions(syncedReactions);
+      } catch (syncError) {
+        console.error('Error syncing reaction counts:', syncError);
+        // Fallback to manual calculation if sync fails
+        const newReactions = { ...reactions };
+        
+        if (userReaction === type) {
+          // Remove reaction
+          newReactions[type] = Math.max(0, newReactions[type] - 1);
+        } else {
+          // Add new reaction, remove old one if exists
+          if (userReaction) {
+            newReactions[userReaction as keyof typeof newReactions] = Math.max(0, newReactions[userReaction as keyof typeof newReactions] - 1);
+          }
+          newReactions[type]++;
+        }
+        
+        setReactions(newReactions);
+        await updatePostReactions(post.id, newReactions);
+      }
     } catch (error) {
       console.error('Error updating reaction:', error);
       // Revert on error
@@ -155,6 +180,7 @@ export function PostCard({ post }: PostCardProps) {
       };
       
       setComments(prevComments => [newComment, ...prevComments]);
+      setCommentCount(prevCount => prevCount + 1);
       setCommentText('');
     } catch (error) {
       console.error('Error submitting comment:', error);
@@ -294,8 +320,8 @@ export function PostCard({ post }: PostCardProps) {
               className="flex items-center space-x-2 px-3 py-2 rounded-full text-sm font-medium bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-all duration-200"
             >
               <MessageCircle className="h-4 w-4" />
-              <span className="hidden sm:inline">Comments ({comments.length})</span>
-              <span className="sm:hidden">({comments.length})</span>
+              <span className="hidden sm:inline">Comments ({commentCount})</span>
+              <span className="sm:hidden">({commentCount})</span>
             </button>
 
             <SocialShare

@@ -9,7 +9,10 @@ import {
   updatePost, 
   getCommentsByPostId,
   movePostToTrash,
-  moveCommentToTrash
+  moveCommentToTrash,
+  syncAllCommentCounts,
+  syncAllReactionCounts,
+  createAuthorReply
 } from '@/lib/firebase/firestore';
 import { Post, Comment } from '@/types';
 import AdminAnalytics from '@/components/AdminAnalytics';
@@ -35,7 +38,11 @@ import {
   Mic,
   MicOff,
   AlertCircle,
-  Sparkles
+  Sparkles,
+  Settings,
+  RefreshCw,
+  Reply,
+  Send
 } from 'lucide-react';
 import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { AuthTurnstile, type AuthTurnstileRef } from '@/components/AuthTurnstile';
@@ -307,6 +314,13 @@ export default function AdminPage() {
   const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
   const [suggestedTitle, setSuggestedTitle] = useState('');
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isSyncingReactions, setIsSyncingReactions] = useState(false);
+  
+  // Reply states
+  const [replyingToComment, setReplyingToComment] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
 
   const languages = [
     { code: 'en-US', name: 'English (US)', flag: '🇺🇸' },
@@ -624,6 +638,39 @@ export default function AdminPage() {
     }
   };
 
+  const handleReplyToComment = (commentId: string) => {
+    setReplyingToComment(commentId);
+    setReplyText('');
+  };
+
+  const handleCancelReply = () => {
+    setReplyingToComment(null);
+    setReplyText('');
+  };
+
+  const handleSubmitReply = async (commentId: string, postId: string) => {
+    if (!replyText.trim() || isSubmittingReply) return;
+
+    try {
+      setIsSubmittingReply(true);
+      await createAuthorReply({
+        postId: postId,
+        text: replyText.trim(),
+        ipHash: user?.email || 'admin'
+      });
+      
+      await loadData();
+      setReplyingToComment(null);
+      setReplyText('');
+      alert('Reply posted successfully!');
+    } catch (error) {
+      console.error('Error posting reply:', error);
+      alert('Failed to post reply. Please try again.');
+    } finally {
+      setIsSubmittingReply(false);
+    }
+  };
+
 
 
   // Format content for different display contexts
@@ -809,6 +856,42 @@ export default function AdminPage() {
     { id: 'trash', label: 'Trash', icon: Trash2 },
   ];
 
+  const handleSyncCommentCounts = async () => {
+    if (!confirm('This will sync comment counts for all posts. Continue?')) {
+      return;
+    }
+
+    try {
+      setIsSyncing(true);
+      const result = await syncAllCommentCounts();
+      alert(`Comment counts synced successfully! ${result.synced} posts updated, ${result.errors} errors.`);
+      await loadData(); // Reload data to show updated counts
+    } catch (error) {
+      console.error('Error syncing comment counts:', error);
+      alert('Failed to sync comment counts. Please try again.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleSyncReactionCounts = async () => {
+    if (!confirm('This will sync reaction counts for all posts. Continue?')) {
+      return;
+    }
+
+    try {
+      setIsSyncingReactions(true);
+      const result = await syncAllReactionCounts();
+      alert(`Reaction counts synced successfully! ${result.synced} posts updated, ${result.errors} errors.`);
+      await loadData(); // Reload data to show updated counts
+    } catch (error) {
+      console.error('Error syncing reaction counts:', error);
+      alert('Failed to sync reaction counts. Please try again.');
+    } finally {
+      setIsSyncingReactions(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex">
       {/* Sidebar */}
@@ -983,6 +1066,57 @@ export default function AdminPage() {
                     </span>
                   </div>
                 </div>
+              </div>
+
+              {/* Admin Tools Section */}
+              <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-700 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-600">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+                    <div className="p-2 bg-gradient-to-r from-orange-500 to-red-600 rounded-lg">
+                      <Settings className="h-5 w-5 text-white" />
+                    </div>
+                    Admin Tools
+                  </h3>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={handleSyncCommentCounts}
+                    disabled={isSyncing}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/30 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSyncing ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                        Syncing...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4" />
+                        Sync Comment Counts
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={handleSyncReactionCounts}
+                    disabled={isSyncingReactions}
+                    className="flex items-center gap-2 px-4 py-2 bg-rose-100 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300 rounded-lg hover:bg-rose-200 dark:hover:bg-rose-900/30 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSyncingReactions ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-rose-600"></div>
+                        Syncing...
+                      </>
+                    ) : (
+                      <>
+                        <Heart className="h-4 w-4" />
+                        Sync Reaction Counts
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-3">
+                  Use these tools to fix any inconsistencies between displayed counts and actual numbers in the database.
+                </p>
               </div>
 
             {/* Enhanced Recent Activity */}
@@ -1214,9 +1348,33 @@ export default function AdminPage() {
             </div>
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                  Comments ({comments.length})
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                    Comments ({comments.length})
+                  </h3>
+                  {/* Test button for development */}
+                  {process.env.NODE_ENV === 'development' && posts.length > 0 && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          await createAuthorReply({
+                            postId: posts[0].id,
+                            text: "This is a test author reply to verify the functionality works correctly.",
+                            ipHash: user?.email || 'admin'
+                          });
+                          await loadData();
+                          alert('Test author reply created!');
+                        } catch (error) {
+                          console.error('Error creating test reply:', error);
+                          alert('Failed to create test reply');
+                        }
+                      }}
+                      className="px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                    >
+                      Create Test Author Reply
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="divide-y divide-gray-200 dark:divide-gray-700">
                 {loadingData ? (
@@ -1236,7 +1394,14 @@ export default function AdminPage() {
                       <div key={comment.id} className="p-4 sm:p-6 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200">
                         <div className="flex flex-col sm:flex-row sm:items-start gap-4">
                           <div className="flex-1 min-w-0">
-                            <p className="text-gray-900 dark:text-white mb-2 break-words">{comment.text}</p>
+                            <div className="flex items-start gap-2 mb-2">
+                              <p className="text-gray-900 dark:text-white break-words flex-1">{comment.text}</p>
+                              {comment.isAuthorReply && (
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400 flex-shrink-0">
+                                  Author
+                                </span>
+                              )}
+                            </div>
                             <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm text-gray-500 dark:text-gray-400">
                               <span className="whitespace-nowrap">{new Date(comment.createdAt).toLocaleDateString()}</span>
                               <span className="flex items-center gap-1 whitespace-nowrap">
@@ -1251,6 +1416,15 @@ export default function AdminPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2 flex-shrink-0 self-start">
+                            {!comment.isAuthorReply && (
+                              <button
+                                onClick={() => handleReplyToComment(comment.id)}
+                                className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200"
+                                title="Reply as author"
+                              >
+                                <Reply className="h-4 w-4" />
+                              </button>
+                            )}
                             <button
                               onClick={() => handleDeleteComment(comment.id)}
                               className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors duration-200"
@@ -1260,6 +1434,40 @@ export default function AdminPage() {
                             </button>
                           </div>
                         </div>
+                        
+                        {/* Reply Form */}
+                        {replyingToComment === comment.id && (
+                          <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                                Replying as Author
+                              </span>
+                            </div>
+                            <textarea
+                              value={replyText}
+                              onChange={(e) => setReplyText(e.target.value)}
+                              placeholder="Write your reply as the author..."
+                              className="w-full p-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                              rows={3}
+                            />
+                            <div className="flex justify-end gap-2 mt-3">
+                              <button
+                                onClick={handleCancelReply}
+                                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors duration-200"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={() => handleSubmitReply(comment.id, comment.postId)}
+                                disabled={!replyText.trim() || isSubmittingReply}
+                                className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <Send className="h-4 w-4" />
+                                {isSubmittingReply ? 'Posting...' : 'Post Reply'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })

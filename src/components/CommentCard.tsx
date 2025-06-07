@@ -43,6 +43,11 @@ export function CommentCard({ comment, onReactionUpdate }: CommentCardProps) {
     loadUserReaction();
   }, [userId, comment.id]);
 
+  // Sync reactions when comment changes
+  useEffect(() => {
+    setReactions(comment.reactions);
+  }, [comment.reactions]);
+
   const handleReaction = async (type: 'like' | 'love' | 'laugh' | 'wow' | 'sad' | 'angry') => {
     if (isUpdatingReaction) return;
     
@@ -100,14 +105,27 @@ export function CommentCard({ comment, onReactionUpdate }: CommentCardProps) {
 
   return (
     <div className="flex space-x-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-      <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-        <span className="text-white text-sm">👤</span>
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+        comment.isAuthorReply 
+          ? 'bg-gradient-to-br from-blue-500 to-blue-600' 
+          : 'bg-gradient-to-br from-blue-400 to-blue-500'
+      }`}>
+        <span className="text-white text-sm">
+          {comment.isAuthorReply ? '✍️' : '👤'}
+        </span>
       </div>
       <div className="flex-1 min-w-0">
         <div className="mb-2">
-          <p className="text-gray-700 dark:text-gray-300 text-sm break-words">
-            {comment.text}
-          </p>
+          <div className="flex items-start gap-2">
+            <p className="text-gray-700 dark:text-gray-300 text-sm break-words flex-1">
+              {comment.text}
+            </p>
+            {comment.isAuthorReply && (
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400 flex-shrink-0">
+                Author
+              </span>
+            )}
+          </div>
           <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 block">
             {formatCommentTime(comment.createdAt)}
           </span>

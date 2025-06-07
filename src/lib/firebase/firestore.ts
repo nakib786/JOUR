@@ -14,7 +14,8 @@ import {
   QueryConstraint,
   FirestoreError,
   setDoc,
-  FieldValue
+  FieldValue,
+  increment
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Post, Comment, TrashItem } from '@/types';
@@ -302,6 +303,7 @@ export async function moveCommentToTrash(id: string, deletedBy?: string): Promis
       expiresAt: new Date(Date.now() + TRASH_RETENTION_PERIOD),
       metadata: {
         postId: commentData.postId,
+        isAuthorReply: commentData.isAuthorReply || false,
         reactions: commentData.reactions
       }
     };
@@ -315,6 +317,11 @@ export async function moveCommentToTrash(id: string, deletedBy?: string): Promis
     
     // Delete from original collection
     await deleteDoc(doc(db, COMMENTS_COLLECTION, id));
+    
+    // Decrement the comment count in the post
+    if (commentData.postId) {
+      await decrementCommentCount(commentData.postId);
+    }
     
     console.log('Comment moved to trash successfully');
   } catch (error) {
@@ -410,6 +417,7 @@ export async function restoreCommentFromTrash(trashId: string): Promise<void> {
       text: trashData.content,
       createdAt: new Date(),
       ipHash: 'restored',
+      isAuthorReply: trashData.metadata?.isAuthorReply || false,
       reactions: trashData.metadata?.reactions || {
         like: 0, love: 0, laugh: 0, wow: 0, sad: 0, angry: 0
       }
@@ -420,6 +428,11 @@ export async function restoreCommentFromTrash(trashId: string): Promise<void> {
       ...commentData,
       createdAt: serverTimestamp()
     });
+    
+    // Increment the comment count in the post
+    if (trashData.metadata?.postId) {
+      await incrementCommentCount(trashData.metadata.postId);
+    }
     
     // Remove from trash
     await deleteDoc(doc(db, TRASH_COLLECTION, trashId));
@@ -544,11 +557,49 @@ export async function createComment(commentData: Omit<Comment, 'id' | 'createdAt
       },
       createdAt: serverTimestamp(),
     });
+    
+    // Increment the comment count in the post
+    await incrementCommentCount(commentData.postId);
+    
     console.log('Comment created successfully');
     return docRef.id;
   } catch (error) {
     const firestoreError = error as FirestoreError;
     console.error('Error creating comment:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    throw error;
+  }
+}
+
+export async function createAuthorReply(commentData: Omit<Comment, 'id' | 'createdAt' | 'reactions' | 'isAuthorReply'>): Promise<string> {
+  try {
+    console.log('Creating author reply for post:', commentData.postId);
+    const authorReplyData = {
+      ...commentData,
+      isAuthorReply: true,
+      reactions: {
+        like: 0,
+        love: 0,
+        laugh: 0,
+        wow: 0,
+        sad: 0,
+        angry: 0,
+      },
+      createdAt: serverTimestamp(),
+    };
+    console.log('Author reply data:', authorReplyData);
+    const docRef = await addDoc(collection(db, COMMENTS_COLLECTION), authorReplyData);
+    
+    // Increment the comment count in the post
+    await incrementCommentCount(commentData.postId);
+    
+    console.log('Author reply created successfully');
+    return docRef.id;
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error creating author reply:', {
       code: firestoreError.code,
       message: firestoreError.message
     });
@@ -578,7 +629,10 @@ export async function getCommentsByPostId(postId: string): Promise<Comment[]> {
       console.log('Processing comment doc:', doc.id, data);
       return {
         id: doc.id,
-        ...data,
+        postId: data.postId,
+        text: data.text,
+        ipHash: data.ipHash,
+        isAuthorReply: data.isAuthorReply || false,
         createdAt: data.createdAt?.toDate?.() || data.createdAt || new Date(),
         reactions: data.reactions || {
           like: 0,
@@ -649,8 +703,24 @@ export async function updateComment(id: string, updates: Partial<Comment>): Prom
 export async function deleteComment(id: string): Promise<void> {
   try {
     console.log('Deleting comment:', id);
-    const docRef = doc(db, COMMENTS_COLLECTION, id);
-    await deleteDoc(docRef);
+    
+    // Get the comment first to know which post to decrement
+    const commentDocRef = doc(db, COMMENTS_COLLECTION, id);
+    const commentDoc = await getDoc(commentDocRef);
+    
+    if (commentDoc.exists()) {
+      const commentData = commentDoc.data();
+      const postId = commentData.postId;
+      
+      // Delete the comment
+      await deleteDoc(commentDocRef);
+      
+      // Decrement the comment count in the post
+      if (postId) {
+        await decrementCommentCount(postId);
+      }
+    }
+    
     console.log('Comment deleted successfully');
   } catch (error) {
     const firestoreError = error as FirestoreError;
@@ -762,18 +832,202 @@ export async function incrementShareCount(postId: string): Promise<void> {
   try {
     console.log('Incrementing share count for post:', postId);
     const docRef = doc(db, POSTS_COLLECTION, postId);
-    const docSnap = await getDoc(docRef);
-    
-    if (docSnap.exists()) {
-      const currentData = docSnap.data();
-      const currentShareCount = currentData.shareCount || 0;
-      await updateDoc(docRef, { 
-        shareCount: currentShareCount + 1 
-      });
-      console.log('Share count incremented successfully');
-    }
+    await updateDoc(docRef, {
+      shareCount: increment(1)
+    });
+    console.log('Share count incremented successfully');
   } catch (error) {
-    console.error('Error incrementing share count:', error);
+    const firestoreError = error as FirestoreError;
+    console.error('Error incrementing share count:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    throw error;
+  }
+}
+
+// Comment count operations
+export async function incrementCommentCount(postId: string): Promise<void> {
+  try {
+    console.log('Incrementing comment count for post:', postId);
+    const docRef = doc(db, POSTS_COLLECTION, postId);
+    await updateDoc(docRef, {
+      commentCount: increment(1)
+    });
+    console.log('Comment count incremented successfully');
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error incrementing comment count:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    throw error;
+  }
+}
+
+export async function decrementCommentCount(postId: string): Promise<void> {
+  try {
+    console.log('Decrementing comment count for post:', postId);
+    const docRef = doc(db, POSTS_COLLECTION, postId);
+    await updateDoc(docRef, {
+      commentCount: increment(-1)
+    });
+    console.log('Comment count decremented successfully');
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error decrementing comment count:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    throw error;
+  }
+}
+
+// Sync comment count with actual number of comments
+export async function syncCommentCount(postId: string): Promise<number> {
+  try {
+    console.log('Syncing comment count for post:', postId);
+    
+    // Get actual comment count
+    const q = query(
+      collection(db, COMMENTS_COLLECTION),
+      where('postId', '==', postId)
+    );
+    const querySnapshot = await getDocs(q);
+    const actualCount = querySnapshot.size;
+    
+    // Update the post's comment count
+    const postDocRef = doc(db, POSTS_COLLECTION, postId);
+    await updateDoc(postDocRef, {
+      commentCount: actualCount
+    });
+    
+    console.log(`Comment count synced for post ${postId}: ${actualCount}`);
+    return actualCount;
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error syncing comment count:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    throw error;
+  }
+}
+
+// Sync all posts' comment counts
+export async function syncAllCommentCounts(): Promise<{ synced: number; errors: number }> {
+  try {
+    console.log('Syncing comment counts for all posts...');
+    
+    // Get all posts
+    const postsQuery = query(collection(db, POSTS_COLLECTION));
+    const postsSnapshot = await getDocs(postsQuery);
+    
+    let synced = 0;
+    let errors = 0;
+    
+    // Process each post
+    for (const postDoc of postsSnapshot.docs) {
+      try {
+        await syncCommentCount(postDoc.id);
+        synced++;
+      } catch (error) {
+        console.error(`Error syncing comment count for post ${postDoc.id}:`, error);
+        errors++;
+      }
+    }
+    
+    console.log(`Comment count sync completed: ${synced} synced, ${errors} errors`);
+    return { synced, errors };
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error syncing all comment counts:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    throw error;
+  }
+}
+
+// Sync reaction counts with actual user reactions
+export async function syncReactionCounts(postId: string): Promise<{ like: number; love: number; laugh: number; wow: number; sad: number; angry: number }> {
+  try {
+    console.log('Syncing reaction counts for post:', postId);
+    
+    // Get all user reactions for this post
+    const q = query(
+      collection(db, USER_REACTIONS_COLLECTION),
+      where('postId', '==', postId)
+    );
+    const querySnapshot = await getDocs(q);
+    
+    // Count reactions by type
+    const reactionCounts = {
+      like: 0,
+      love: 0,
+      laugh: 0,
+      wow: 0,
+      sad: 0,
+      angry: 0,
+    };
+    
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      const reactionType = data.reactionType as keyof typeof reactionCounts;
+      if (reactionCounts.hasOwnProperty(reactionType)) {
+        reactionCounts[reactionType]++;
+      }
+    });
+    
+    // Update the post's reaction counts
+    const postDocRef = doc(db, POSTS_COLLECTION, postId);
+    await updateDoc(postDocRef, {
+      reactions: reactionCounts
+    });
+    
+    console.log(`Reaction counts synced for post ${postId}:`, reactionCounts);
+    return reactionCounts;
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error syncing reaction counts:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
+    throw error;
+  }
+}
+
+// Sync all posts' reaction counts
+export async function syncAllReactionCounts(): Promise<{ synced: number; errors: number }> {
+  try {
+    console.log('Syncing reaction counts for all posts...');
+    
+    // Get all posts
+    const postsQuery = query(collection(db, POSTS_COLLECTION));
+    const postsSnapshot = await getDocs(postsQuery);
+    
+    let synced = 0;
+    let errors = 0;
+    
+    // Process each post
+    for (const postDoc of postsSnapshot.docs) {
+      try {
+        await syncReactionCounts(postDoc.id);
+        synced++;
+      } catch (error) {
+        console.error(`Error syncing reaction counts for post ${postDoc.id}:`, error);
+        errors++;
+      }
+    }
+    
+    console.log(`Reaction count sync completed: ${synced} synced, ${errors} errors`);
+    return { synced, errors };
+  } catch (error) {
+    const firestoreError = error as FirestoreError;
+    console.error('Error syncing all reaction counts:', {
+      code: firestoreError.code,
+      message: firestoreError.message
+    });
     throw error;
   }
 } 

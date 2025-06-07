@@ -25,6 +25,7 @@ export interface Comment {
   text: string;
   createdAt: Date;
   ipHash?: string;
+  isAuthorReply?: boolean;
   reactions: {
     like: number;
     love: number;
@@ -61,6 +62,7 @@ export interface TrashItem {
     tags?: string[];
     mood?: string;
     postId?: string; // For comments
+    isAuthorReply?: boolean; // For comments
     reactions?: {
       like: number;
       love: number;

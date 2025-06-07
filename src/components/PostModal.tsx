@@ -8,7 +8,7 @@ import { Post, Comment } from '@/types';
 import { ReactionBar } from './ReactionButton';
 import { CommentCard } from './CommentCard';
 import { SocialShare } from './SocialShare';
-import { updatePostReactions, createComment, getCommentsByPostId, getUserReaction, setUserReaction, removeUserReaction, incrementShareCount } from '@/lib/firebase/firestore';
+import { updatePostReactions, createComment, getCommentsByPostId, getUserReaction, setUserReaction, removeUserReaction, incrementShareCount, syncCommentCount, syncReactionCounts } from '@/lib/firebase/firestore';
 import { formatRichText } from '@/lib/richTextFormatter';
 
 interface PostModalProps {
@@ -35,6 +35,7 @@ export function PostModal({ post, isOpen, onClose }: PostModalProps) {
   const [loadingComments, setLoadingComments] = useState(false);
   const [commentsLoaded, setCommentsLoaded] = useState(false);
   const [shareCount, setShareCount] = useState(post?.shareCount || 0);
+  const [commentCount, setCommentCount] = useState(post?.commentCount || 0);
   const [userId] = useState(() => {
     if (typeof window !== 'undefined') {
       let id = localStorage.getItem('anonymousUserId');
@@ -76,6 +77,7 @@ export function PostModal({ post, isOpen, onClose }: PostModalProps) {
     } else if (post) {
       setReactions(post.reactions);
       setShareCount(post.shareCount || 0);
+      setCommentCount(post.commentCount || 0);
     }
   }, [isOpen, post]);
 
@@ -95,6 +97,20 @@ export function PostModal({ post, isOpen, onClose }: PostModalProps) {
     }
   }, [userId, post?.id, isOpen]);
 
+  // Sync comment count when post changes
+  useEffect(() => {
+    if (post) {
+      setCommentCount(post.commentCount || 0);
+    }
+  }, [post?.commentCount]);
+
+  // Sync reactions when post changes
+  useEffect(() => {
+    if (post) {
+      setReactions(post.reactions);
+    }
+  }, [post?.reactions]);
+
   // Load comments when comments section is opened
   useEffect(() => {
     if (showComments && !commentsLoaded && post) {
@@ -110,6 +126,16 @@ export function PostModal({ post, isOpen, onClose }: PostModalProps) {
       const fetchedComments = await getCommentsByPostId(post.id);
       setComments(fetchedComments);
       setCommentsLoaded(true);
+      
+      // Sync comment count with actual number of comments
+      try {
+        const actualCount = await syncCommentCount(post.id);
+        setCommentCount(actualCount);
+      } catch (syncError) {
+        console.error('Error syncing comment count:', syncError);
+        // Fallback to using the fetched comments length
+        setCommentCount(fetchedComments.length);
+      }
     } catch (error) {
       console.error('Error loading comments:', error);
       setComments([]);
@@ -124,23 +150,38 @@ export function PostModal({ post, isOpen, onClose }: PostModalProps) {
     
     try {
       setIsUpdatingReaction(true);
-      const newReactions = { ...reactions };
       
       if (userReaction === type) {
-        newReactions[type] = Math.max(0, newReactions[type] - 1);
+        // Remove reaction
         setUserReactionState(null);
         await removeUserReaction(userId, post.id);
       } else {
-        if (userReaction) {
-          newReactions[userReaction as keyof typeof newReactions] = Math.max(0, newReactions[userReaction as keyof typeof newReactions] - 1);
-        }
-        newReactions[type]++;
+        // Add new reaction (this will automatically remove old one if exists)
         setUserReactionState(type);
         await setUserReaction(userId, type, post.id);
       }
       
-      setReactions(newReactions);
-      await updatePostReactions(post.id, newReactions);
+      // Sync reaction counts from the database to ensure accuracy
+      try {
+        const syncedReactions = await syncReactionCounts(post.id);
+        setReactions(syncedReactions);
+      } catch (syncError) {
+        console.error('Error syncing reaction counts:', syncError);
+        // Fallback to manual calculation if sync fails
+        const newReactions = { ...reactions };
+        
+        if (userReaction === type) {
+          newReactions[type] = Math.max(0, newReactions[type] - 1);
+        } else {
+          if (userReaction) {
+            newReactions[userReaction as keyof typeof newReactions] = Math.max(0, newReactions[userReaction as keyof typeof newReactions] - 1);
+          }
+          newReactions[type]++;
+        }
+        
+        setReactions(newReactions);
+        await updatePostReactions(post.id, newReactions);
+      }
     } catch (error) {
       console.error('Error updating reaction:', error);
       setReactions(post.reactions);
@@ -179,6 +220,7 @@ export function PostModal({ post, isOpen, onClose }: PostModalProps) {
       };
       
       setComments(prevComments => [newComment, ...prevComments]);
+      setCommentCount(prevCount => prevCount + 1);
       setCommentText('');
     } catch (error) {
       console.error('Error submitting comment:', error);
@@ -360,7 +402,7 @@ export function PostModal({ post, isOpen, onClose }: PostModalProps) {
                       whileTap={{ scale: 0.95 }}
                     >
                       <MessageCircle className="h-5 w-5" />
-                      <span>Comments ({comments.length})</span>
+                      <span>Comments ({commentCount})</span>
                     </motion.button>
 
                     <SocialShare
