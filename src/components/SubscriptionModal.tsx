@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Mail, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 
 interface SubscriptionModalProps {
   isOpen: boolean;
@@ -13,6 +14,8 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileInstance>(null);
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -20,6 +23,10 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
       setEmail('');
       setStatus('idle');
       setMessage('');
+      setTurnstileToken(null);
+      if (turnstileRef.current) {
+        turnstileRef.current.reset();
+      }
     }
   }, [isOpen]);
 
@@ -53,6 +60,13 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
       return;
     }
 
+    // Validate Turnstile token
+    if (!turnstileToken) {
+      setStatus('error');
+      setMessage('Please complete the security verification.');
+      return;
+    }
+
     setIsLoading(true);
     setStatus('idle');
 
@@ -64,6 +78,7 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
         },
         body: JSON.stringify({
           email: email.trim(),
+          turnstileToken: turnstileToken,
         }),
       });
 
@@ -140,6 +155,25 @@ export function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
               className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
               required
               disabled={isLoading}
+            />
+          </div>
+
+          {/* Turnstile Widget */}
+          <div className="flex justify-center">
+            <Turnstile
+              ref={turnstileRef}
+              siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ''}
+              onSuccess={(token) => setTurnstileToken(token)}
+              onError={() => {
+                setTurnstileToken(null);
+                setStatus('error');
+                setMessage('Security verification failed. Please try again.');
+              }}
+              onExpire={() => {
+                setTurnstileToken(null);
+                setStatus('error');
+                setMessage('Security verification expired. Please try again.');
+              }}
             />
           </div>
 

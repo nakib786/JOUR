@@ -4,7 +4,7 @@ import { collection, addDoc, query, where, getDocs, serverTimestamp } from 'fire
 
 export async function POST(request: NextRequest) {
   try {
-    const { email } = await request.json();
+    const { email, turnstileToken } = await request.json();
 
     // Validate input
     if (!email) {
@@ -14,11 +14,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!turnstileToken) {
+      return NextResponse.json(
+        { error: 'Security verification is required' },
+        { status: 400 }
+      );
+    }
+
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return NextResponse.json(
         { error: 'Invalid email format' },
+        { status: 400 }
+      );
+    }
+
+    // Verify Turnstile token
+    const turnstileResponse = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        secret: process.env.TURNSTILE_SECRET_KEY || '',
+        response: turnstileToken,
+        remoteip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || '',
+      }),
+    });
+
+    const turnstileResult = await turnstileResponse.json();
+
+    if (!turnstileResult.success) {
+      return NextResponse.json(
+        { error: 'Security verification failed. Please try again.' },
         { status: 400 }
       );
     }
