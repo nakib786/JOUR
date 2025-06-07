@@ -399,3 +399,58 @@ body {
 .reaction-btn-support:hover {
   background-color: rgb(22 163 74);
 }
+
+/* Markdown Editor Styles */
+.w-md-editor {
+  background-color: transparent !important;
+}
+
+.w-md-editor.w-md-editor-focus {
+  border-color: rgb(236 72 153) !important;
+  box-shadow: 0 0 0 2px rgb(236 72 153 / 0.2) !important;
+}
+
+.w-md-editor-text-textarea,
+.w-md-editor-text {
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+  font-family: inherit !important;
+}
+
+.w-md-editor-toolbar {
+  border-bottom: 1px solid rgb(229 231 235) !important;
+  background-color: rgb(249 250 251) !important;
+}
+
+.dark .w-md-editor-toolbar {
+  border-bottom-color: rgb(75 85 99) !important;
+  background-color: rgb(31 41 55) !important;
+}
+
+.w-md-editor-toolbar ul li button {
+  color: rgb(75 85 99) !important;
+}
+
+.dark .w-md-editor-toolbar ul li button {
+  color: rgb(156 163 175) !important;
+}
+
+.w-md-editor-toolbar ul li button:hover {
+  background-color: rgb(243 244 246) !important;
+  color: rgb(17 24 39) !important;
+}
+
+.dark .w-md-editor-toolbar ul li button:hover {
+  background-color: rgb(55 65 81) !important;
+  color: rgb(243 244 246) !important;
+}
+
+.w-md-editor-text-textarea {
+  background-color: white !important;
+  color: rgb(17 24 39) !important;
+}
+
+.dark .w-md-editor-text-textarea {
+  background-color: rgb(55 65 81) !important;
+  color: rgb(243 244 246) !important;
+}

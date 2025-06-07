@@ -31,13 +31,235 @@ import {
   Activity,
   Menu,
   X,
-  Clock
+  Clock,
+  Mic,
+  MicOff,
+  AlertCircle,
+  Sparkles
 } from 'lucide-react';
 import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { AuthTurnstile, type AuthTurnstileRef } from '@/components/AuthTurnstile';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
+
+// Dynamically import the markdown editor to avoid SSR issues
+const MDEditor = dynamic(
+  () => import('@uiw/react-md-editor').then((mod) => mod.default),
+  { ssr: false }
+);
+
+
+
+// Speech Recognition Interfaces
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+  resultIndex: number;
+}
+
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start(): void;
+  stop(): void;
+  abort(): void;
+  onstart: ((this: SpeechRecognition, ev: Event) => void) | null;
+  onend: ((this: SpeechRecognition, ev: Event) => void) | null;
+  onresult: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => void) | null;
+  onerror: ((this: SpeechRecognition, ev: Event) => void) | null;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition: new () => SpeechRecognition;
+    webkitSpeechRecognition: new () => SpeechRecognition;
+  }
+}
 
 type AdminTab = 'dashboard' | 'posts' | 'comments' | 'analytics' | 'create' | 'trash';
+
+// AI Analysis Functions
+const detectMoodFromText = (text: string): string => {
+  const moodKeywords = {
+    hopeful: [
+      'hope', 'hopeful', 'future', 'dream', 'aspire', 'optimistic', 'positive', 'bright', 'tomorrow', 'better', 'improve', 'progress', 'forward', 'believe', 'faith', 'confidence', 'possibility', 'potential',
+      'आशा', 'उम्मीद', 'सपना', 'भविष्य', 'बेहतर', 'सुधार', 'प्रगति', 'विश्वास', 'संभावना'
+    ],
+    grateful: [
+      'thank', 'thanks', 'grateful', 'gratitude', 'appreciate', 'appreciation', 'blessed', 'blessing', 'fortunate', 'thankful', 'grace', 'lucky', 'privilege', 'gift', 'abundance',
+      'धन्यवाद', 'आभार', 'कृतज्ञ', 'शुक्रगुजार', 'भाग्यशाली', 'खुशकिस्मत', 'वरदान', 'उपहार'
+    ],
+    reflective: [
+      'think', 'thinking', 'thought', 'reflect', 'reflection', 'consider', 'ponder', 'contemplate', 'realize', 'realization', 'understand', 'understanding', 'insight', 'perspective', 'wonder', 'question', 'meaning', 'purpose', 'deep', 'profound',
+      'सोचना', 'विचार', 'समझना', 'एहसास', 'अनुभव', 'गहरा', 'मतलब', 'उद्देश्य', 'चिंतन', 'मनन'
+    ],
+    happy: [
+      'happy', 'happiness', 'joy', 'joyful', 'smile', 'smiling', 'laugh', 'laughing', 'excited', 'excitement', 'cheerful', 'delighted', 'pleased', 'content', 'satisfied', 'elated', 'thrilled', 'amazing', 'wonderful', 'fantastic', 'great', 'awesome', 'love', 'loving', 'celebration', 'celebrate',
+      'खुश', 'खुशी', 'प्रसन्न', 'आनंद', 'हंसी', 'मुस्कान', 'उत्साह', 'उत्सव', 'मजा', 'अच्छा', 'बेहतरीन', 'शानदार', 'प्रेम', 'प्यार'
+    ],
+    sad: [
+      'sad', 'sadness', 'cry', 'crying', 'tears', 'sorrow', 'grief', 'hurt', 'hurting', 'pain', 'painful', 'heartbreak', 'broken', 'lonely', 'loneliness', 'empty', 'lost', 'miss', 'missing', 'regret', 'disappointed', 'disappointment', 'depressed', 'depression', 'down', 'low',
+      'उदास', 'दुख', 'दुखी', 'गम', 'रोना', 'आंसू', 'दर्द', 'पीड़ा', 'अकेला', 'खाली', 'टूटा', 'निराश', 'अवसाद'
+    ],
+    anxious: [
+      'worry', 'worried', 'worrying', 'anxious', 'anxiety', 'nervous', 'nervousness', 'stress', 'stressed', 'stressful', 'fear', 'fearful', 'afraid', 'scared', 'panic', 'concerned', 'concern', 'tension', 'tense', 'overwhelmed', 'pressure', 'uncertain', 'uncertainty', 'doubt', 'doubtful',
+      'चिंता', 'चिंतित', 'परेशान', 'डर', 'डरा', 'भय', 'घबराहट', 'तनाव', 'दबाव', 'संदेह', 'अनिश्चितता'
+    ],
+    angry: [
+      'angry', 'anger', 'mad', 'furious', 'rage', 'frustrated', 'frustration', 'annoyed', 'annoying', 'irritated', 'irritating', 'upset', 'outraged', 'livid', 'hate', 'hatred', 'disgusted', 'fed up', 'sick of', 'can\'t stand',
+      'गुस्सा', 'गुस्से', 'क्रोध', 'क्रोधित', 'नाराज', 'चिढ़', 'परेशान', 'झुंझलाहट', 'नफरत', 'घृणा'
+    ],
+    nostalgic: [
+      'remember', 'remembering', 'memory', 'memories', 'nostalgia', 'nostalgic', 'childhood', 'past', 'old', 'before', 'used to', 'back then', 'those days', 'miss', 'missing', 'reminisce', 'flashback', 'throwback', 'vintage', 'classic',
+      'यादें', 'याद', 'पुराना', 'बचपन', 'अतीत', 'पहले', 'उस समय', 'स्मृति', 'पुराने दिन'
+    ],
+    vulnerable: [
+      'vulnerable', 'weakness', 'weak', 'fragile', 'sensitive', 'exposed', 'open', 'raw', 'honest', 'confession', 'admit', 'struggle', 'struggling', 'difficult', 'hard', 'tough', 'challenge', 'challenging',
+      'कमजोर', 'नाजुक', 'संवेदनशील', 'कठिन', 'मुश्किल', 'संघर्ष', 'चुनौती', 'सच्चाई'
+    ],
+    proud: [
+      'proud', 'pride', 'achievement', 'accomplish', 'accomplished', 'success', 'successful', 'victory', 'win', 'won', 'triumph', 'overcome', 'conquered', 'earned', 'deserve', 'deserved', 'milestone', 'breakthrough',
+      'गर्व', 'गर्वित', 'सफलता', 'जीत', 'विजय', 'उपलब्धि', 'कामयाबी', 'हासिल', 'मील का पत्थर'
+    ]
+  };
+
+  const cleanText = text.toLowerCase().replace(/[^\w\s]/g, ' ');
+  const words = cleanText.split(/\s+/).filter(word => word.length > 2);
+  const moodScores: Record<string, number> = {};
+
+  // Initialize scores
+  Object.keys(moodKeywords).forEach(mood => {
+    moodScores[mood] = 0;
+  });
+
+  // Calculate weighted scores
+  for (const [mood, keywords] of Object.entries(moodKeywords)) {
+    for (const keyword of keywords) {
+      for (const word of words) {
+        if (word.includes(keyword) || keyword.includes(word)) {
+          // Exact match gets higher score
+          if (word === keyword) {
+            moodScores[mood] += 3;
+          } else if (word.includes(keyword) || keyword.includes(word)) {
+            moodScores[mood] += 1;
+          }
+        }
+      }
+    }
+  }
+
+  // Find the mood with highest score
+  const sortedMoods = Object.entries(moodScores)
+    .filter(([, score]) => score > 0)
+    .sort(([, a], [, b]) => b - a);
+
+  return sortedMoods.length > 0 ? sortedMoods[0][0] : '';
+};
+
+const extractTagsFromText = (text: string): string[] => {
+  const tagKeywords = {
+    // Specific tags instead of categories
+    love: ['love', 'loving', 'romance', 'romantic', 'relationship', 'partner', 'boyfriend', 'girlfriend', 'husband', 'wife', 'प्रेम', 'प्यार', 'मोहब्बत', 'रिश्ता'],
+    family: ['family', 'mother', 'father', 'mom', 'dad', 'parent', 'parents', 'child', 'children', 'son', 'daughter', 'brother', 'sister', 'परिवार', 'माता', 'पिता', 'बच्चे', 'भाई', 'बहन'],
+    friends: ['friend', 'friends', 'friendship', 'buddy', 'pal', 'companion', 'दोस्त', 'मित्र', 'दोस्ती', 'मित्रता'],
+    work: ['work', 'job', 'career', 'office', 'business', 'professional', 'colleague', 'boss', 'employee', 'काम', 'नौकरी', 'व्यवसाय', 'ऑफिस'],
+    health: ['health', 'healthy', 'sick', 'illness', 'doctor', 'hospital', 'medicine', 'exercise', 'fitness', 'स्वास्थ्य', 'बीमारी', 'डॉक्टर', 'अस्पताल', 'दवा'],
+    travel: ['travel', 'trip', 'journey', 'vacation', 'holiday', 'adventure', 'explore', 'visit', 'यात्रा', 'सफर', 'छुट्टी', 'घूमना'],
+    education: ['school', 'college', 'university', 'study', 'student', 'teacher', 'learn', 'education', 'स्कूल', 'कॉलेज', 'पढ़ाई', 'शिक्षा', 'छात्र'],
+    food: ['food', 'eat', 'cooking', 'cook', 'recipe', 'restaurant', 'meal', 'dinner', 'lunch', 'breakfast', 'खाना', 'भोजन', 'खाना बनाना', 'रेसिपी'],
+    nature: ['nature', 'tree', 'trees', 'flower', 'flowers', 'garden', 'park', 'mountain', 'river', 'ocean', 'sky', 'sun', 'moon', 'rain', 'प्रकृति', 'पेड़', 'फूल', 'बगीचा', 'पहाड़', 'नदी', 'आसमान', 'सूरज', 'चांद', 'बारिश'],
+    music: ['music', 'song', 'sing', 'singing', 'dance', 'dancing', 'concert', 'band', 'musician', 'संगीत', 'गाना', 'गाना गाना', 'नृत्य', 'नाचना'],
+    books: ['book', 'books', 'read', 'reading', 'novel', 'story', 'author', 'library', 'किताब', 'पुस्तक', 'पढ़ना', 'कहानी', 'लेखक'],
+    sports: ['sport', 'sports', 'game', 'play', 'playing', 'football', 'cricket', 'basketball', 'tennis', 'खेल', 'खेलना', 'फुटबॉल', 'क्रिकेट'],
+    technology: ['computer', 'phone', 'internet', 'app', 'software', 'digital', 'online', 'website', 'कंप्यूटर', 'फोन', 'इंटरनेट', 'ऐप'],
+    money: ['money', 'salary', 'income', 'expensive', 'cheap', 'buy', 'sell', 'shopping', 'पैसा', 'वेतन', 'आय', 'महंगा', 'सस्ता', 'खरीदना'],
+    time: ['today', 'yesterday', 'tomorrow', 'morning', 'evening', 'night', 'weekend', 'week', 'month', 'year', 'आज', 'कल', 'सुबह', 'शाम', 'रात'],
+    weather: ['weather', 'hot', 'cold', 'warm', 'cool', 'sunny', 'cloudy', 'rainy', 'मौसम', 'गर्म', 'ठंड', 'धूप', 'बादल'],
+    emotions: ['happy', 'sad', 'angry', 'excited', 'nervous', 'calm', 'peaceful', 'stressed', 'खुश', 'उदास', 'गुस्सा', 'उत्साहित'],
+    goals: ['goal', 'goals', 'dream', 'dreams', 'plan', 'planning', 'future', 'ambition', 'target', 'लक्ष्य', 'सपना', 'योजना', 'भविष्य'],
+    memories: ['memory', 'memories', 'remember', 'childhood', 'past', 'nostalgia', 'याद', 'यादें', 'बचपन', 'अतीत'],
+    celebration: ['birthday', 'anniversary', 'wedding', 'party', 'celebration', 'festival', 'holiday', 'जन्मदिन', 'शादी', 'पार्टी', 'त्योहार', 'उत्सव']
+  };
+
+  const cleanText = text.toLowerCase().replace(/[^\w\s]/g, ' ');
+  const words = cleanText.split(/\s+/).filter(word => word.length > 2);
+  const tagScores: Record<string, number> = {};
+
+  // Initialize scores
+  Object.keys(tagKeywords).forEach(tag => {
+    tagScores[tag] = 0;
+  });
+
+  // Calculate scores
+  for (const [tag, keywords] of Object.entries(tagKeywords)) {
+    for (const keyword of keywords) {
+      for (const word of words) {
+        if (word.includes(keyword) || keyword.includes(word)) {
+          if (word === keyword) {
+            tagScores[tag] += 2;
+          } else {
+            tagScores[tag] += 1;
+          }
+        }
+      }
+    }
+  }
+
+  // Return top scoring tags
+  return Object.entries(tagScores)
+    .filter(([, score]) => score > 0)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 6)
+    .map(([tag]) => tag);
+};
+
+const generateTitleFromContent = (content: string): string => {
+  if (!content.trim() || content.trim().length < 10) return '';
+  
+  const cleanContent = content.trim();
+  
+  // Split into sentences
+  const sentences = cleanContent.split(/[.!?]+/).filter(s => s.trim().length > 5);
+  if (sentences.length === 0) return '';
+  
+  let bestSentence = sentences[0].trim();
+  
+  // If first sentence is too short, try to combine with second
+  if (bestSentence.length < 20 && sentences.length > 1) {
+    const combined = bestSentence + ' ' + sentences[1].trim();
+    if (combined.length <= 60) {
+      bestSentence = combined;
+    }
+  }
+  
+  // Clean and process the sentence
+  let title = bestSentence
+    .replace(/^(today|yesterday|tomorrow|this morning|this evening|tonight|i|me|my|we|our)\s+/i, '')
+    .replace(/\s+(and|but|so|because|that|which|who|when|where|why|how)\s+.*$/i, '')
+    .trim();
+  
+  // Take first meaningful part (up to 50 characters)
+  if (title.length > 50) {
+    const words = title.split(/\s+/);
+    let truncated = '';
+    for (const word of words) {
+      if ((truncated + ' ' + word).length <= 47) {
+        truncated += (truncated ? ' ' : '') + word;
+      } else {
+        break;
+      }
+    }
+    title = truncated + '...';
+  }
+  
+  // Capitalize properly
+  title = title.charAt(0).toUpperCase() + title.slice(1);
+  
+  // Remove trailing punctuation except ellipsis
+  title = title.replace(/[.!?]+$/, '');
+  
+  return title.length >= 5 ? title : '';
+};
 
 export default function AdminPage() {
   const [user, setUser] = useState<User | null>(null);
@@ -59,7 +281,8 @@ export default function AdminPage() {
     title: '',
     content: '',
     tags: '',
-    mood: 'hopeful'
+    mood: 'hopeful',
+    date: new Date().toISOString().slice(0, 16) // Default to current date/time in YYYY-MM-DDTHH:MM format
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -73,6 +296,23 @@ export default function AdminPage() {
   
   // Sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Voice input states
+  const [isListening, setIsListening] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const [speechError, setSpeechError] = useState('');
+  const [currentLanguage, setCurrentLanguage] = useState('en-US');
+  const [detectedMood, setDetectedMood] = useState('');
+  const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
+  const [suggestedTitle, setSuggestedTitle] = useState('');
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+
+  const languages = [
+    { code: 'en-US', name: 'English (US)', flag: '🇺🇸' },
+    { code: 'en-GB', name: 'English (UK)', flag: '🇬🇧' },
+    { code: 'en-IN', name: 'English (India)', flag: '🇮🇳' },
+    { code: 'hi-IN', name: 'Hindi', flag: '🇮🇳' }
+  ];
 
   useEffect(() => {
     const unsubscribe = onAuthStateChange((user) => {
@@ -88,6 +328,134 @@ export default function AdminPage() {
       loadData();
     }
   }, [user]);
+
+  // Initialize speech recognition
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        setSpeechSupported(true);
+        recognitionRef.current = new SpeechRecognition();
+        recognitionRef.current.continuous = true;
+        recognitionRef.current.interimResults = true;
+        recognitionRef.current.lang = currentLanguage;
+
+        recognitionRef.current.onresult = (event: SpeechRecognitionEvent) => {
+          let finalTranscript = '';
+          
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalTranscript += transcript;
+            }
+          }
+          
+          if (finalTranscript.trim()) {
+            setPostForm(prev => {
+              const newContent = prev.content + (prev.content ? ' ' : '') + finalTranscript.trim();
+              // Analyze content after state update
+              setTimeout(() => analyzeContent(newContent), 100);
+              return {
+                ...prev, 
+                content: newContent
+              };
+            });
+            // Clear any previous errors
+            setSpeechError('');
+          }
+        };
+
+        recognitionRef.current.onerror = () => {
+          setSpeechError('Speech recognition error. Please try again.');
+          setIsListening(false);
+        };
+
+        recognitionRef.current.onend = () => {
+          setIsListening(false);
+        };
+      }
+    }
+  }, [currentLanguage]);
+
+  // Update language when it changes
+  useEffect(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.lang = currentLanguage;
+    }
+  }, [currentLanguage]);
+
+  const analyzeContent = (content: string) => {
+    // Clear previous suggestions if content is too short
+    if (content.trim().length < 15) {
+      setDetectedMood('');
+      setSuggestedTags([]);
+      setSuggestedTitle('');
+      return;
+    }
+
+    // Analyze mood
+    const mood = detectMoodFromText(content);
+    if (mood && mood !== detectedMood) {
+      setDetectedMood(mood);
+      // Only auto-update mood if user hasn't manually changed it
+      if (postForm.mood === 'hopeful' || postForm.mood === detectedMood) {
+        setPostForm(prev => ({ ...prev, mood }));
+      }
+    }
+    
+    // Analyze tags
+    const tags = extractTagsFromText(content);
+    if (tags.length > 0) {
+      setSuggestedTags(tags);
+    } else {
+      setSuggestedTags([]);
+    }
+    
+    // Generate title suggestion
+    if (content.trim().length > 30) {
+      const title = generateTitleFromContent(content);
+      if (title && title !== suggestedTitle) {
+        setSuggestedTitle(title);
+      }
+    }
+  };
+
+  const startListening = () => {
+    if (recognitionRef.current && speechSupported) {
+      setSpeechError('');
+      // Update language before starting
+      recognitionRef.current.lang = currentLanguage;
+      try {
+        recognitionRef.current.start();
+        setIsListening(true);
+      } catch (error) {
+        console.error('Speech recognition start error:', error);
+        setSpeechError('Failed to start speech recognition. Please try again.');
+      }
+    }
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    }
+  };
+
+  const addSuggestedTag = (tag: string) => {
+    const currentTags = postForm.tags ? postForm.tags.split(',').map(t => t.trim()) : [];
+    if (!currentTags.includes(tag)) {
+      const newTags = [...currentTags, tag].join(', ');
+      setPostForm(prev => ({ ...prev, tags: newTags }));
+    }
+  };
+
+  const applySuggestedTitle = () => {
+    if (suggestedTitle) {
+      setPostForm(prev => ({ ...prev, title: suggestedTitle }));
+      setSuggestedTitle('');
+    }
+  };
 
   const loadData = async () => {
     setLoadingData(true);
@@ -176,7 +544,7 @@ export default function AdminPage() {
           content: postForm.content.trim(),
           tags,
           mood: postForm.mood,
-          date: new Date()
+          date: new Date(postForm.date)
         });
       }
 
@@ -185,12 +553,26 @@ export default function AdminPage() {
         title: '',
         content: '',
         tags: '',
-        mood: 'hopeful'
+        mood: 'hopeful',
+        date: new Date().toISOString().slice(0, 16)
       });
 
       await loadData();
       setActiveTab('posts');
-      alert(editingPost ? 'Post updated successfully!' : 'Post created successfully!');
+      
+      if (editingPost) {
+        alert('Post updated successfully!');
+      } else {
+        const postDate = new Date(postForm.date);
+        const now = new Date();
+        if (postDate > now) {
+          alert(`Post scheduled successfully for ${postDate.toLocaleDateString()} at ${postDate.toLocaleTimeString()}!`);
+        } else if (postDate.toDateString() === now.toDateString()) {
+          alert('Post published successfully!');
+        } else {
+          alert(`Post created successfully with date ${postDate.toLocaleDateString()}!`);
+        }
+      }
     } catch (error) {
       console.error('Error saving post:', error);
       alert('Failed to save post. Please try again.');
@@ -205,7 +587,8 @@ export default function AdminPage() {
       title: post.title,
       content: post.content,
       tags: post.tags.join(', '),
-      mood: post.mood
+      mood: post.mood,
+      date: new Date(post.createdAt).toISOString().slice(0, 16)
     });
     setActiveTab('create');
   };
@@ -241,7 +624,91 @@ export default function AdminPage() {
   };
 
   const formatContent = (content: string) => {
-    return content.replace(/#(\w+)/g, '<span class="text-rose-600 dark:text-rose-400 font-medium">#$1</span>');
+    let formatted = content;
+    
+    // Convert line breaks to HTML
+    formatted = formatted.replace(/\n/g, '<br>');
+    
+    // Format hashtags
+    formatted = formatted.replace(/#(\w+)/g, '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-rose-100 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300 mr-1">#$1</span>');
+    
+    // Format mentions (@username)
+    formatted = formatted.replace(/@(\w+)/g, '<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 mr-1">@$1</span>');
+    
+    // Format bold text (**text**)
+    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-gray-900 dark:text-white">$1</strong>');
+    
+    // Format italic text (*text*)
+    formatted = formatted.replace(/\*(.*?)\*/g, '<em class="italic text-gray-800 dark:text-gray-200">$1</em>');
+    
+    // Format quotes ("text")
+    formatted = formatted.replace(/"([^"]+)"/g, '<span class="italic text-gray-700 dark:text-gray-300 border-l-2 border-gray-300 dark:border-gray-600 pl-2 ml-2">"$1"</span>');
+    
+    // Format URLs
+    formatted = formatted.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline">$1</a>');
+    
+    // Format email addresses
+    formatted = formatted.replace(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g, '<a href="mailto:$1" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline">$1</a>');
+    
+    // Format phone numbers (basic pattern)
+    formatted = formatted.replace(/(\+?[\d\s\-\(\)]{10,})/g, '<span class="font-mono text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-1 rounded">$1</span>');
+    
+    // Format time stamps (HH:MM format)
+    formatted = formatted.replace(/\b(\d{1,2}:\d{2}(?:\s?[AaPp][Mm])?)\b/g, '<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">🕐 $1</span>');
+    
+    // Format dates (DD/MM/YYYY or DD-MM-YYYY)
+    formatted = formatted.replace(/\b(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})\b/g, '<span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">📅 $1</span>');
+    
+    // Format emotions/emojis in text
+    const emotionMap: Record<string, string> = {
+      ':)': '😊',
+      ':-)': '😊',
+      ':(': '😢',
+      ':-(': '😢',
+      ':D': '😃',
+      ':-D': '😃',
+      ';)': '😉',
+      ';-)': '😉',
+      ':P': '😛',
+      ':-P': '😛',
+      ':o': '😮',
+      ':-o': '😮',
+      '<3': '❤️',
+      '</3': '💔'
+    };
+    
+    Object.entries(emotionMap).forEach(([text, emoji]) => {
+      const escapedText = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      formatted = formatted.replace(new RegExp(`\\b${escapedText}\\b`, 'g'), emoji);
+    });
+    
+    // Format numbered lists
+    formatted = formatted.replace(/^(\d+)\.\s(.+)$/gm, '<div class="flex items-start gap-2 my-1"><span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs font-medium">$1</span><span>$2</span></div>');
+    
+    // Format bullet points
+    formatted = formatted.replace(/^[\-\*]\s(.+)$/gm, '<div class="flex items-start gap-2 my-1"><span class="text-gray-500 dark:text-gray-400 mt-1">•</span><span>$1</span></div>');
+    
+    return formatted;
+  };
+
+  // Enhanced content preview for different contexts
+  const getContentPreview = (content: string, maxLength: number = 150) => {
+    const plainText = content.replace(/<[^>]*>/g, '').replace(/\n/g, ' ');
+    if (plainText.length <= maxLength) return plainText;
+    return plainText.substring(0, maxLength).trim() + '...';
+  };
+
+  // Format content for different display contexts
+  const formatContentForContext = (content: string, context: 'preview' | 'full' | 'card') => {
+    switch (context) {
+      case 'preview':
+        return getContentPreview(content, 200);
+      case 'card':
+        return getContentPreview(content, 100);
+      case 'full':
+      default:
+        return formatContent(content);
+    }
   };
 
   const getAnalytics = () => {
@@ -617,6 +1084,10 @@ export default function AdminPage() {
                       <h4 className="font-semibold text-gray-900 dark:text-white truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                         {post.title}
                       </h4>
+                      <div 
+                        className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-1"
+                        dangerouslySetInnerHTML={{ __html: formatContentForContext(post.content, 'card') }}
+                      />
                       <div className="flex items-center gap-3 mt-1">
                         <span className="text-sm text-gray-600 dark:text-gray-400">
                           {new Date(post.createdAt).toLocaleDateString()}
@@ -746,11 +1217,20 @@ export default function AdminPage() {
                       <div className="flex flex-col sm:flex-row sm:items-start gap-4">
                         <div className="flex-1 min-w-0">
                           <h4 className="font-medium text-gray-900 dark:text-white mb-2">{post.title}</h4>
-                          <p className="text-gray-600 dark:text-gray-400 text-sm mb-3 line-clamp-2">
-                            {post.content.substring(0, 150)}...
-                          </p>
+                          <div 
+                            className="text-gray-600 dark:text-gray-400 text-sm mb-3 line-clamp-2"
+                            dangerouslySetInnerHTML={{ __html: formatContentForContext(post.content, 'card') }}
+                          />
                           <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm text-gray-500 dark:text-gray-400">
-                            <span className="whitespace-nowrap">{new Date(post.createdAt).toLocaleDateString()}</span>
+                            <span className="whitespace-nowrap flex items-center gap-1">
+                              {new Date(post.createdAt) > new Date() && (
+                                <Clock className="h-3 w-3 text-blue-500" />
+                              )}
+                              {new Date(post.createdAt).toLocaleDateString()}
+                              {new Date(post.createdAt) > new Date() && (
+                                <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">Scheduled</span>
+                              )}
+                            </span>
                             <span className="flex items-center gap-1 whitespace-nowrap">
                               <Heart className="h-4 w-4" />
                               {Object.values(post.reactions).reduce((a, b) => a + b, 0)}
@@ -905,6 +1385,26 @@ export default function AdminPage() {
                 {editingPost ? 'Update your story content' : 'Share a new story with your community'}
               </p>
             </div>
+
+            {/* AI Features Info */}
+            {!editingPost && speechSupported && (
+              <div className="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-2xl shadow-lg p-6 border border-purple-200 dark:border-purple-700 mb-6">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-2 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-lg">
+                    <Sparkles className="h-5 w-5 text-white" />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                    AI-Powered Post Creation
+                  </h3>
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                    NEW
+                  </span>
+                </div>
+                <p className="text-gray-600 dark:text-gray-400 text-sm">
+                  Use voice input in English or Hindi, get automatic mood detection, tag suggestions, and title generation powered by AI.
+                </p>
+              </div>
+            )}
             
             <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-700 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-600">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-8">
@@ -924,7 +1424,7 @@ export default function AdminPage() {
                   <button
                     onClick={() => {
                       setEditingPost(null);
-                      setPostForm({ title: '', content: '', tags: '', mood: 'hopeful' });
+                      setPostForm({ title: '', content: '', tags: '', mood: 'hopeful', date: new Date().toISOString().slice(0, 16) });
                     }}
                     className="px-6 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 font-medium"
                   >
@@ -943,38 +1443,147 @@ export default function AdminPage() {
 
             <form onSubmit={handlePostSubmit} className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Title
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Title
+                  </label>
+                  {suggestedTitle && !postForm.title.trim() && (
+                    <button
+                      type="button"
+                      onClick={applySuggestedTitle}
+                      className="flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition-colors"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      Use AI suggestion
+                    </button>
+                  )}
+                </div>
                 <input
                   type="text"
                   value={postForm.title}
                   onChange={(e) => setPostForm({ ...postForm, title: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-rose-500 focus:border-transparent"
-                  placeholder="Enter story title..."
+                  placeholder={suggestedTitle || "Enter story title..."}
                   required
                 />
+                {suggestedTitle && !postForm.title.trim() && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    💡 AI suggested: &quot;{suggestedTitle}&quot;
+                  </p>
+                )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Content
                 </label>
-                <textarea
-                  value={postForm.content}
-                  onChange={(e) => setPostForm({ ...postForm, content: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-rose-500 focus:border-transparent"
-                  placeholder="Share your story... Use #hashtags to categorize your thoughts."
-                  rows={8}
-                  required
-                />
+                <div className="relative">
+                  {/* Rich Text Editor */}
+                  <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+                    <MDEditor
+                      value={postForm.content}
+                      onChange={(value) => {
+                        const newContent = value || '';
+                        setPostForm({ ...postForm, content: newContent });
+                        analyzeContent(newContent);
+                      }}
+                      preview="edit"
+                      hideToolbar={false}
+                      visibleDragbar={false}
+                      textareaProps={{
+                        placeholder: 'Share your story... Use the toolbar above for formatting or voice input.',
+                        style: {
+                          fontSize: 14,
+                          lineHeight: 1.6,
+                          fontFamily: 'inherit',
+                          minHeight: '200px'
+                        }
+                      }}
+                      height={300}
+                    />
+                  </div>
+                  
+                  {/* Voice Input Integration */}
+                  {speechSupported && (
+                    <div className="mt-2 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={currentLanguage}
+                          onChange={(e) => setCurrentLanguage(e.target.value)}
+                          className="text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          disabled={isListening}
+                        >
+                          {languages.map(lang => (
+                            <option key={lang.code} value={lang.code}>
+                              {lang.flag} {lang.name}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={isListening ? stopListening : startListening}
+                          className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                            isListening 
+                              ? 'bg-red-500 hover:bg-red-600 text-white' 
+                              : 'bg-purple-500 hover:bg-purple-600 text-white'
+                          }`}
+                          disabled={isSubmitting}
+                        >
+                          {isListening ? (
+                            <>
+                              <MicOff className="h-3 w-3" />
+                              Stop Voice
+                            </>
+                          ) : (
+                            <>
+                              <Mic className="h-3 w-3" />
+                              Voice Input
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {postForm.content.length} characters
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {/* Voice and AI Status */}
+                <div className="mt-2 space-y-1">
+                  {isListening && (
+                    <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-xs">
+                      <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                      <span>🎤 Listening... Speak now (voice will be added to your content)</span>
+                    </div>
+                  )}
+                  {speechError && (
+                    <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-xs">
+                      <AlertCircle className="h-3 w-3" />
+                      <span>{speechError}</span>
+                    </div>
+                  )}
+                  {detectedMood && (
+                    <div className="text-xs text-green-600 dark:text-green-400">
+                      🤖 AI detected mood: <span className="font-medium capitalize">{detectedMood}</span>
+                    </div>
+                  )}
+                </div>
+
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Tags (comma-separated)
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Tags (comma-separated)
+                    </label>
+                    {suggestedTags.length > 0 && (
+                      <span className="text-xs text-blue-600 dark:text-blue-400">
+                        {suggestedTags.length} AI suggestions
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={postForm.tags}
@@ -982,12 +1591,36 @@ export default function AdminPage() {
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-rose-500 focus:border-transparent"
                     placeholder="healing, hope, resilience"
                   />
+                  {suggestedTags.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">🤖 AI suggested tags:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {suggestedTags.map((tag, index) => (
+                          <button
+                            key={index}
+                            type="button"
+                            onClick={() => addSuggestedTag(tag)}
+                            className="px-2 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-full text-xs hover:bg-blue-200 dark:hover:bg-blue-900/30 transition-colors"
+                          >
+                            + {tag}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Mood
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Mood
+                    </label>
+                    {detectedMood && (
+                      <span className="text-xs text-green-600 dark:text-green-400">
+                        🤖 AI detected: {detectedMood}
+                      </span>
+                    )}
+                  </div>
                   <select
                     value={postForm.mood}
                     onChange={(e) => setPostForm({ ...postForm, mood: e.target.value })}
@@ -1000,17 +1633,94 @@ export default function AdminPage() {
                     <option value="sad">Sad</option>
                     <option value="grateful">Grateful</option>
                     <option value="reflective">Reflective</option>
+                    <option value="happy">Happy</option>
+                    <option value="angry">Angry</option>
+                    <option value="nostalgic">Nostalgic</option>
                   </select>
                 </div>
               </div>
 
-              <button
+              {/* Date and Time Selection */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Post Date & Time
+                  </label>
+                  <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                    {new Date(postForm.date) > new Date() ? (
+                      <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                        <Clock className="h-3 w-3" />
+                        Scheduled for future
+                      </span>
+                    ) : new Date(postForm.date).toDateString() === new Date().toDateString() ? (
+                      <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                        <Clock className="h-3 w-3" />
+                        Publishing today
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-orange-600 dark:text-orange-400">
+                        <Clock className="h-3 w-3" />
+                        Backdated post
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="sm:col-span-2">
+                    <input
+                      type="datetime-local"
+                      value={postForm.date}
+                      onChange={(e) => setPostForm({ ...postForm, date: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+                      required
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPostForm({ ...postForm, date: new Date().toISOString().slice(0, 16) })}
+                      className="flex-1 px-3 py-2 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                    >
+                      Now
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const tomorrow = new Date();
+                        tomorrow.setDate(tomorrow.getDate() + 1);
+                        tomorrow.setHours(9, 0, 0, 0); // 9 AM tomorrow
+                        setPostForm({ ...postForm, date: tomorrow.toISOString().slice(0, 16) });
+                      }}
+                      className="flex-1 px-3 py-2 text-xs bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/30 transition-colors"
+                    >
+                      Tomorrow
+                    </button>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  You can post in the past, present, or schedule for the future. Future posts will be published automatically.
+                </p>
+              </div>
+
+                              <button
                 type="submit"
                 disabled={isSubmitting || !postForm.title.trim() || !postForm.content.trim()}
-                className="flex items-center gap-2 bg-rose-500 text-white px-6 py-3 rounded-lg hover:bg-rose-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`flex items-center gap-2 px-6 py-3 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-white ${
+                  new Date(postForm.date) > new Date() 
+                    ? 'bg-blue-500 hover:bg-blue-600' 
+                    : 'bg-rose-500 hover:bg-rose-600'
+                }`}
               >
                 <Save className="h-4 w-4" />
-                {isSubmitting ? (editingPost ? 'Updating...' : 'Publishing...') : (editingPost ? 'Update Story' : 'Publish Story')}
+                {isSubmitting ? (
+                  editingPost ? 'Updating...' : 'Publishing...'
+                ) : editingPost ? (
+                  'Update Story'
+                ) : new Date(postForm.date) > new Date() ? (
+                  'Schedule Story'
+                ) : (
+                  'Publish Story'
+                )}
               </button>
             </form>
 
@@ -1022,10 +1732,12 @@ export default function AdminPage() {
                   <h4 className="text-xl font-bold text-gray-900 dark:text-white mb-3">
                     {postForm.title}
                   </h4>
-                  <div 
-                    className="text-gray-700 dark:text-gray-300 leading-relaxed mb-4"
-                    dangerouslySetInnerHTML={{ __html: formatContent(postForm.content) }}
-                  />
+                  <div className="text-gray-700 dark:text-gray-300 leading-relaxed mb-4 prose prose-sm max-w-none">
+                    <div 
+                      className="markdown-preview"
+                      dangerouslySetInnerHTML={{ __html: formatContentForContext(postForm.content, 'full') }}
+                    />
+                  </div>
                   {postForm.tags && (
                     <div className="flex flex-wrap gap-2">
                       {postForm.tags.split(',').map((tag, index) => (

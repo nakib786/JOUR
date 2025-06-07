@@ -234,7 +234,7 @@ export function SocialShare({ title, content, url, tags = [], className = '', po
         title="Share this post"
       >
         <Share2 className="h-4 w-4" />
-        <span>Share</span>
+        <span className="hidden sm:inline">Share</span>
       </button>
 
       {isOpen && (

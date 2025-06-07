@@ -62,7 +62,7 @@ export function ReactionButton({
   
   const sizeClasses = size === 'sm' 
     ? 'px-2 py-1 text-xs' 
-    : 'px-3 py-2 text-sm';
+    : 'px-2 sm:px-3 py-1 sm:py-2 text-xs sm:text-sm';
 
   return (
     <button
@@ -78,7 +78,7 @@ export function ReactionButton({
       `}
       title={config.label}
     >
-      <span className={size === 'sm' ? 'text-sm' : 'text-base'}>
+      <span className={size === 'sm' ? 'text-sm' : 'text-sm sm:text-base'}>
         {config.icon}
       </span>
       {count > 0 && (
@@ -131,7 +131,7 @@ export function ReactionBar({
 
   return (
     <div className="flex items-center space-x-2">
-      <div className="flex space-x-1">
+      <div className={`flex gap-1 ${showAllReactions ? 'flex-wrap' : ''}`}>
         {visibleReactions.map((type) => (
           <ReactionButton
             key={type}
@@ -148,7 +148,7 @@ export function ReactionBar({
       {!showAllReactions && visibleReactions.length < reactionTypes.length && (
         <button
           onClick={() => setShowAllReactions(true)}
-          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex-shrink-0"
           title="Show more reactions"
         >
           <span className="text-lg">➕</span>

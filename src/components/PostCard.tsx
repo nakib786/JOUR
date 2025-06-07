@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { Post, Comment } from '@/types';
-import { Heart, MessageCircle, Calendar, Tag } from 'lucide-react';
+import { Heart, MessageCircle, Calendar, Tag, Expand } from 'lucide-react';
 import { format } from 'date-fns';
 import { updatePostReactions, createComment, getCommentsByPostId, getUserReaction, setUserReaction, removeUserReaction, incrementShareCount } from '@/lib/firebase/firestore';
 import { ReactionBar } from './ReactionButton';
 import { CommentCard } from './CommentCard';
 import { SocialShare } from './SocialShare';
+import { PostModal } from './PostModal';
 
 interface PostCardProps {
   post: Post;
@@ -24,6 +25,7 @@ export function PostCard({ post }: PostCardProps) {
   const [loadingComments, setLoadingComments] = useState(false);
   const [commentsLoaded, setCommentsLoaded] = useState(false);
   const [shareCount, setShareCount] = useState(post.shareCount || 0);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [userId] = useState(() => {
     // Generate a simple user ID based on browser fingerprint
     // In a real app, you'd use proper authentication
@@ -197,9 +199,27 @@ export function PostCard({ post }: PostCardProps) {
   };
 
   return (
-    <article className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-gray-700 overflow-hidden">
-      {/* Header */}
-      <div className="p-6 pb-4">
+    <>
+      <article 
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-gray-700 overflow-hidden cursor-pointer group hover:scale-[1.02] hover:border-rose-200 dark:hover:border-rose-700"
+        onClick={() => setIsModalOpen(true)}
+      >
+        {/* Expand Icon Overlay */}
+        <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:scale-110">
+          <div className="bg-gradient-to-r from-rose-500 to-pink-500 backdrop-blur-sm rounded-full p-2 shadow-lg">
+            <Expand className="h-5 w-5 text-white" />
+          </div>
+        </div>
+        
+        {/* Click hint */}
+        <div className="absolute bottom-4 left-4 z-10 opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:translate-y-0 translate-y-2">
+          <div className="bg-black/70 backdrop-blur-sm rounded-lg px-3 py-1">
+            <span className="text-white text-xs font-medium">Click to read full story</span>
+          </div>
+        </div>
+        
+        {/* Header */}
+        <div className="p-6 pb-4 relative">
         <div className="flex items-start justify-between mb-6">
           <div className="flex items-center space-x-4">
             <div className="w-12 h-12 bg-gradient-to-br from-rose-400 to-pink-500 rounded-full flex items-center justify-center shadow-md">
@@ -245,24 +265,33 @@ export function PostCard({ post }: PostCardProps) {
       </div>
 
       {/* Reactions and Comments Bar */}
-      <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-        <div className="flex items-center justify-between">
-          <ReactionBar
-            reactions={reactions}
-            userReaction={userReaction}
-            onReaction={handleReaction}
-            disabled={isUpdatingReaction}
-            size="md"
-            showAll={false}
-          />
+      <div 
+        className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div onClick={(e) => e.stopPropagation()}>
+            <ReactionBar
+              reactions={reactions}
+              userReaction={userReaction}
+              onReaction={handleReaction}
+              disabled={isUpdatingReaction}
+              size="md"
+              showAll={false}
+            />
+          </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
             <button
-              onClick={() => setShowComments(!showComments)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowComments(!showComments);
+              }}
               className="flex items-center space-x-2 px-3 py-2 rounded-full text-sm font-medium bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-all duration-200"
             >
               <MessageCircle className="h-4 w-4" />
-              <span>Comments ({comments.length})</span>
+              <span className="hidden sm:inline">Comments ({comments.length})</span>
+              <span className="sm:hidden">({comments.length})</span>
             </button>
 
             <SocialShare
@@ -288,7 +317,10 @@ export function PostCard({ post }: PostCardProps) {
 
       {/* Comments Section */}
       {showComments && (
-        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/30">
+        <div 
+          className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/30"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="space-y-4">
             {/* Comment Input */}
             <div className="flex space-x-3">
@@ -305,7 +337,10 @@ export function PostCard({ post }: PostCardProps) {
                 />
                 <div className="flex justify-end mt-2">
                   <button 
-                    onClick={handleCommentSubmit}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCommentSubmit();
+                    }}
                     disabled={!commentText.trim() || isSubmittingComment}
                     className="px-4 py-2 bg-rose-500 text-white rounded-lg text-sm font-medium hover:bg-rose-600 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
@@ -344,5 +379,13 @@ export function PostCard({ post }: PostCardProps) {
         </div>
       )}
     </article>
+    
+    {/* Post Modal */}
+    <PostModal 
+      post={post}
+      isOpen={isModalOpen}
+      onClose={() => setIsModalOpen(false)}
+    />
+  </>
   );
 } 
