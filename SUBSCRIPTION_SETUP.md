@@ -54,6 +54,14 @@ interface Subscriber {
   source: string;          // Where they subscribed from
   ipAddress: string;       // IP address for analytics
   userAgent: string;       // Browser info for analytics
+  location: {              // Approximate location data
+    country: string;       // Country name
+    region: string;        // State/Province
+    city: string;          // City name
+    timezone: string;      // Timezone
+    latitude: number | null;  // Latitude coordinates
+    longitude: number | null; // Longitude coordinates
+  };
 }
 ```
 
@@ -131,6 +139,16 @@ To send emails when new posts are published, you can:
 - ✅ Rate limiting (via Turnstile)
 - ✅ Input sanitization
 - ✅ Server-side validation
+
+## Location Data Collection
+
+The system now collects approximate location data for analytics:
+
+- **Service Used**: ipapi.co (free tier: 1000 requests/day)
+- **Data Collected**: Country, region, city, timezone, coordinates
+- **Privacy**: Only approximate location, no precise tracking
+- **Fallback**: Gracefully handles failures with "Unknown" values
+- **Local Development**: Skips location lookup for localhost IPs
 
 ## Troubleshooting
 

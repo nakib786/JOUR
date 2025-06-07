@@ -64,14 +64,49 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get IP address for location lookup
+    const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+    
+    // Get approximate location from IP address
+    let locationData = {
+      country: 'Unknown',
+      region: 'Unknown',
+      city: 'Unknown',
+      timezone: 'Unknown',
+      latitude: null,
+      longitude: null,
+    };
+
+    if (ipAddress !== 'unknown' && ipAddress !== '127.0.0.1' && ipAddress !== '::1') {
+      try {
+        // Using ipapi.co for free IP geolocation (1000 requests/day free)
+        const locationResponse = await fetch(`https://ipapi.co/${ipAddress}/json/`);
+        if (locationResponse.ok) {
+          const locationJson = await locationResponse.json();
+          locationData = {
+            country: locationJson.country_name || 'Unknown',
+            region: locationJson.region || 'Unknown',
+            city: locationJson.city || 'Unknown',
+            timezone: locationJson.timezone || 'Unknown',
+            latitude: locationJson.latitude || null,
+            longitude: locationJson.longitude || null,
+          };
+        }
+      } catch (error) {
+        console.log('Location lookup failed:', error);
+        // Continue with unknown location data
+      }
+    }
+
     // Add subscriber to database
     const subscriberData = {
       email: email.toLowerCase(),
       subscribedAt: serverTimestamp(),
       isActive: true,
       source: 'footer_subscription',
-      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+      ipAddress: ipAddress,
       userAgent: request.headers.get('user-agent') || 'unknown',
+      location: locationData,
     };
 
     const docRef = await addDoc(subscribersRef, subscriberData);
