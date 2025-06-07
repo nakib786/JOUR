@@ -1,0 +1,63 @@
+# 🌸 Kahani Roz — A Story Every Day
+
+**Kahani Roz** is a public storytelling platform built with **Next.js** and **Firebase**, where one can share inspiring, raw, real-life journal entries. Viewers can anonymously react, comment, and filter through daily stories that reflect hope, struggle, and truth.
+
+---
+
+## ✨ Features
+
+### 🔍 Frontend (User-Facing)
+
+- 📜 **Latest Journal Feed** — Displays most recent entries first.
+- 📅 **Date Range Filter** — Search journal entries by any custom date range.
+- 🏷️ **Tag Filter** — Filter stories by hashtags like `#panicattack`, `#healing`, `#wins`.
+- 📖 **Auto-loading Entries** — Seamless infinite scroll or pagination.
+- 💬 **Anonymous Commenting** — Anyone can leave a comment without logging in.
+- ❤️ **Reactions** — Like, Hug, Support buttons on each post.
+- 🌗 **Dark Mode Support** — Toggle or auto-detect system preference.
+- 🔔 **Subscribe/Notify** — Visitors can opt-in to be notified when a new story drops (via email or push, optional).
+- 🔍 **Search by Tags** — Easily find posts by emotional category.
+- 📲 **Fully responsive** for mobile, tablet, and desktop.
+
+---
+
+### 🔐 Backend (Admin-Facing)
+
+- ✍️ **Post Story** — Authenticated author can post daily entries with title, content, mood, and tags.
+- 🧵 **Manage Threads** — Edit/delete posts and moderate comments.
+- 🚫 **Filter/Mute Inappropriate Comments** — AI-based or manual moderation system (Perspective API or custom).
+- 📊 **Comment Stats View** — View count of reactions and top-performing posts/comments.
+- 📷 **Optional Image Uploads** — Add photos or mood boards to posts.
+
+---
+
+## ⚙️ Tech Stack
+
+- **Next.js** (App Router)
+- **Tailwind CSS** for styling
+- **Firebase Firestore** for journal & comment storage
+- **Firebase Auth** for author login
+- **Firebase Hosting / Vercel**
+- **date-fns** for date filtering
+- **uuid** for unique comment IDs
+- **Perspective API** (optional) for toxic comment detection
+
+---
+
+## 🧱 Firestore Structure
+
+```bash
+posts (collection)
+├── postId (doc)
+│   ├── title: string
+│   ├── content: string
+│   ├── date: timestamp
+│   ├── tags: array<string>
+│   ├── reactions: { like: 0, hug: 0, support: 0 }
+│   └── mood: string (e.g., "hopeful", "anxious")
+
+posts/{postId}/comments (subcollection)
+├── commentId (doc)
+│   ├── text: string
+│   ├── createdAt: timestamp
+│   └── ipHash: string (optional for spam prevention)
