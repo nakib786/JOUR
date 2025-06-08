@@ -3,6 +3,9 @@
 export interface VisitorData {
   id?: string;
   ipAddress: string;
+  ipv4Address?: string;
+  ipv6Address?: string;
+  ipVersion?: 'IPv4' | 'IPv6' | 'Both' | 'Unknown';
   isp?: string;
   city?: string;
   country?: string;
@@ -21,26 +24,114 @@ export interface LocationData {
   timezone?: string;
 }
 
-// Get visitor's IP address and location data
+// Helper function to detect IP version
+function detectIPVersion(ip: string): 'IPv4' | 'IPv6' | 'Unknown' {
+  // IPv4 pattern: xxx.xxx.xxx.xxx
+  const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+  // IPv6 pattern: contains colons and hex characters
+  const ipv6Pattern = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/;
+  
+  if (ipv4Pattern.test(ip)) {
+    return 'IPv4';
+  } else if (ipv6Pattern.test(ip) || ip.includes(':')) {
+    return 'IPv6';
+  }
+  return 'Unknown';
+}
+
+// Get visitor's IP address and location data with enhanced IP detection
 export async function getVisitorInfo(): Promise<{
   ipAddress: string;
+  ipv4Address?: string;
+  ipv6Address?: string;
+  ipVersion: 'IPv4' | 'IPv6' | 'Both' | 'Unknown';
   location: LocationData;
   userAgent: string;
   referrer: string;
 }> {
   try {
-    // Get IP address and location data from ipapi.co (free tier: 1000 requests/day)
-    const response = await fetch('https://ipapi.co/json/');
-    const data = await response.json();
-    
-    return {
-      ipAddress: data.ip || 'unknown',
-      location: {
+    let primaryIP = '';
+    let ipv4 = '';
+    let ipv6 = '';
+    let location: LocationData = {};
+
+    // Try to get both IPv4 and IPv6 addresses
+    try {
+      // Get primary IP and location from ipapi.co
+      const response = await fetch('https://ipapi.co/json/');
+      const data = await response.json();
+      
+      primaryIP = data.ip || '';
+      location = {
         city: data.city,
         region: data.region,
         country: data.country_name,
         isp: data.org,
         timezone: data.timezone
+      };
+
+      // Determine if primary IP is IPv4 or IPv6
+      const primaryVersion = detectIPVersion(primaryIP);
+      if (primaryVersion === 'IPv4') {
+        ipv4 = primaryIP;
+      } else if (primaryVersion === 'IPv6') {
+        ipv6 = primaryIP;
+      }
+    } catch (error) {
+      console.warn('Primary IP service failed:', error);
+    }
+
+    // Try to get IPv4 specifically if we don't have it
+    if (!ipv4) {
+      try {
+        const ipv4Response = await fetch('https://api.ipify.org?format=json');
+        const ipv4Data = await ipv4Response.json();
+        if (ipv4Data.ip && detectIPVersion(ipv4Data.ip) === 'IPv4') {
+          ipv4 = ipv4Data.ip;
+          if (!primaryIP) primaryIP = ipv4;
+        }
+      } catch (error) {
+        console.warn('IPv4 service failed:', error);
+      }
+    }
+
+    // Try to get IPv6 specifically if we don't have it
+    if (!ipv6) {
+      try {
+        const ipv6Response = await fetch('https://api64.ipify.org?format=json');
+        const ipv6Data = await ipv6Response.json();
+        if (ipv6Data.ip && detectIPVersion(ipv6Data.ip) === 'IPv6') {
+          ipv6 = ipv6Data.ip;
+          if (!primaryIP) primaryIP = ipv6;
+        }
+      } catch (error) {
+        console.warn('IPv6 service failed:', error);
+      }
+    }
+
+    // Determine IP version status
+    let ipVersion: 'IPv4' | 'IPv6' | 'Both' | 'Unknown' = 'Unknown';
+    if (ipv4 && ipv6) {
+      ipVersion = 'Both';
+    } else if (ipv4) {
+      ipVersion = 'IPv4';
+    } else if (ipv6) {
+      ipVersion = 'IPv6';
+    }
+
+    // Use IPv4 as primary if available, otherwise use IPv6 or whatever we got
+    const finalIP = ipv4 || ipv6 || primaryIP || 'unknown';
+
+    return {
+      ipAddress: finalIP,
+      ipv4Address: ipv4 || undefined,
+      ipv6Address: ipv6 || undefined,
+      ipVersion,
+      location: location.city ? location : {
+        city: 'Unknown',
+        region: 'Unknown',
+        country: 'Unknown',
+        isp: 'Unknown'
       },
       userAgent: typeof window !== 'undefined' ? navigator.userAgent : '',
       referrer: typeof window !== 'undefined' ? document.referrer : ''
@@ -48,37 +139,18 @@ export async function getVisitorInfo(): Promise<{
   } catch (error) {
     console.error('Error getting visitor info:', error);
     
-    // Fallback: try to get IP from a different service
-    try {
-      const fallbackResponse = await fetch('https://api.ipify.org?format=json');
-      const fallbackData = await fallbackResponse.json();
-      
-      return {
-        ipAddress: fallbackData.ip || 'unknown',
-        location: {
-          city: 'Unknown',
-          region: 'Unknown',
-          country: 'Unknown',
-          isp: 'Unknown'
-        },
-        userAgent: typeof window !== 'undefined' ? navigator.userAgent : '',
-        referrer: typeof window !== 'undefined' ? document.referrer : ''
-      };
-    } catch (fallbackError) {
-      console.error('Fallback IP service also failed:', fallbackError);
-      
-      return {
-        ipAddress: 'unknown',
-        location: {
-          city: 'Unknown',
-          region: 'Unknown',
-          country: 'Unknown',
-          isp: 'Unknown'
-        },
-        userAgent: typeof window !== 'undefined' ? navigator.userAgent : '',
-        referrer: typeof window !== 'undefined' ? document.referrer : ''
-      };
-    }
+    return {
+      ipAddress: 'unknown',
+      ipVersion: 'Unknown',
+      location: {
+        city: 'Unknown',
+        region: 'Unknown',
+        country: 'Unknown',
+        isp: 'Unknown'
+      },
+      userAgent: typeof window !== 'undefined' ? navigator.userAgent : '',
+      referrer: typeof window !== 'undefined' ? document.referrer : ''
+    };
   }
 }
 
@@ -98,6 +170,9 @@ export async function trackPageVisit(page: string): Promise<void> {
     
     const visitorData: VisitorData = {
       ipAddress: visitorInfo.ipAddress,
+      ipv4Address: visitorInfo.ipv4Address,
+      ipv6Address: visitorInfo.ipv6Address,
+      ipVersion: visitorInfo.ipVersion,
       isp: visitorInfo.location.isp,
       city: visitorInfo.location.city,
       country: visitorInfo.location.country,
@@ -113,7 +188,7 @@ export async function trackPageVisit(page: string): Promise<void> {
     // Mark this session as tracked
     sessionStorage.setItem(sessionKey, 'true');
     
-    console.log('Page visit tracked:', page);
+    console.log('Page visit tracked:', page, 'IP:', visitorInfo.ipAddress, 'Version:', visitorInfo.ipVersion);
   } catch (error) {
     console.error('Error tracking page visit:', error);
     // Fail silently to not disrupt user experience

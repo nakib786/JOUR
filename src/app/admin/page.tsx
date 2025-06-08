@@ -997,15 +997,15 @@ export default function AdminPage() {
               </div>
               
                             {/* Enhanced Stats Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-2xl shadow-lg p-6 border border-blue-200 dark:border-blue-700 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg">
-                      <FileText className="h-6 w-6 text-white" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl lg:rounded-2xl shadow-lg p-4 lg:p-6 border border-blue-200 dark:border-blue-700 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                  <div className="flex items-center justify-between mb-3 lg:mb-4">
+                    <div className="p-2.5 lg:p-3 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg lg:rounded-xl shadow-lg">
+                      <FileText className="h-5 w-5 lg:h-6 lg:w-6 text-white" />
                     </div>
                     <div className="text-right">
-                      <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">{analytics.totalPosts}</p>
-                      <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Total Posts</p>
+                      <p className="text-2xl lg:text-3xl font-bold text-blue-900 dark:text-blue-100">{analytics.totalPosts}</p>
+                      <p className="text-xs lg:text-sm font-medium text-blue-700 dark:text-blue-300">Total Posts</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1015,14 +1015,14 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-2xl shadow-lg p-6 border border-green-200 dark:border-green-700 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-gradient-to-r from-green-500 to-green-600 rounded-xl shadow-lg">
-                      <MessageSquare className="h-6 w-6 text-white" />
+                <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-xl lg:rounded-2xl shadow-lg p-4 lg:p-6 border border-green-200 dark:border-green-700 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                  <div className="flex items-center justify-between mb-3 lg:mb-4">
+                    <div className="p-2.5 lg:p-3 bg-gradient-to-r from-green-500 to-green-600 rounded-lg lg:rounded-xl shadow-lg">
+                      <MessageSquare className="h-5 w-5 lg:h-6 lg:w-6 text-white" />
                     </div>
                     <div className="text-right">
-                      <p className="text-3xl font-bold text-green-900 dark:text-green-100">{analytics.totalComments}</p>
-                      <p className="text-sm font-medium text-green-700 dark:text-green-300">Total Comments</p>
+                      <p className="text-2xl lg:text-3xl font-bold text-green-900 dark:text-green-100">{analytics.totalComments}</p>
+                      <p className="text-xs lg:text-sm font-medium text-green-700 dark:text-green-300">Total Comments</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1032,14 +1032,14 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-900/20 dark:to-rose-800/20 rounded-2xl shadow-lg p-6 border border-rose-200 dark:border-rose-700 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-gradient-to-r from-rose-500 to-rose-600 rounded-xl shadow-lg">
-                      <Heart className="h-6 w-6 text-white" />
+                <div className="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-900/20 dark:to-rose-800/20 rounded-xl lg:rounded-2xl shadow-lg p-4 lg:p-6 border border-rose-200 dark:border-rose-700 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                  <div className="flex items-center justify-between mb-3 lg:mb-4">
+                    <div className="p-2.5 lg:p-3 bg-gradient-to-r from-rose-500 to-rose-600 rounded-lg lg:rounded-xl shadow-lg">
+                      <Heart className="h-5 w-5 lg:h-6 lg:w-6 text-white" />
                     </div>
                     <div className="text-right">
-                      <p className="text-3xl font-bold text-rose-900 dark:text-rose-100">{analytics.totalReactions}</p>
-                      <p className="text-sm font-medium text-rose-700 dark:text-rose-300">Total Reactions</p>
+                      <p className="text-2xl lg:text-3xl font-bold text-rose-900 dark:text-rose-100">{analytics.totalReactions}</p>
+                      <p className="text-xs lg:text-sm font-medium text-rose-700 dark:text-rose-300">Total Reactions</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1049,16 +1049,16 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-2xl shadow-lg p-6 border border-purple-200 dark:border-purple-700 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="p-3 bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl shadow-lg">
-                      <Activity className="h-6 w-6 text-white" />
+                <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-xl lg:rounded-2xl shadow-lg p-4 lg:p-6 border border-purple-200 dark:border-purple-700 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                  <div className="flex items-center justify-between mb-3 lg:mb-4">
+                    <div className="p-2.5 lg:p-3 bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg lg:rounded-xl shadow-lg">
+                      <Activity className="h-5 w-5 lg:h-6 lg:w-6 text-white" />
                     </div>
                     <div className="text-right">
-                      <p className="text-3xl font-bold text-purple-900 dark:text-purple-100">
+                      <p className="text-2xl lg:text-3xl font-bold text-purple-900 dark:text-purple-100">
                         {((analytics.totalReactions + analytics.totalComments) / Math.max(analytics.totalPosts, 1)).toFixed(1)}
                       </p>
-                      <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Engagement Rate</p>
+                      <p className="text-xs lg:text-sm font-medium text-purple-700 dark:text-purple-300">Engagement Rate</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1070,47 +1070,51 @@ export default function AdminPage() {
               </div>
 
               {/* Admin Tools Section */}
-              <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-700 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-600">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+              <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-700 rounded-xl lg:rounded-2xl shadow-lg p-4 lg:p-6 border border-gray-200 dark:border-gray-600">
+                <div className="flex items-center justify-between mb-4 lg:mb-6">
+                  <h3 className="text-lg lg:text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2 lg:gap-3">
                     <div className="p-2 bg-gradient-to-r from-orange-500 to-red-600 rounded-lg">
-                      <Settings className="h-5 w-5 text-white" />
+                      <Settings className="h-4 w-4 lg:h-5 lg:w-5 text-white" />
                     </div>
                     Admin Tools
                   </h3>
                 </div>
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap gap-2 lg:gap-3">
                   <button
                     onClick={handleSyncCommentCounts}
                     disabled={isSyncing}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/30 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-1.5 lg:gap-2 px-3 lg:px-4 py-2.5 lg:py-2 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/30 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed text-sm min-h-[44px]"
                   >
                     {isSyncing ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                        Syncing...
+                        <span className="hidden sm:inline">Syncing...</span>
+                        <span className="sm:hidden">Sync...</span>
                       </>
                     ) : (
                       <>
                         <RefreshCw className="h-4 w-4" />
-                        Sync Comment Counts
+                        <span className="hidden sm:inline">Sync Comment Counts</span>
+                        <span className="sm:hidden">Comments</span>
                       </>
                     )}
                   </button>
                   <button
                     onClick={handleSyncReactionCounts}
                     disabled={isSyncingReactions}
-                    className="flex items-center gap-2 px-4 py-2 bg-rose-100 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300 rounded-lg hover:bg-rose-200 dark:hover:bg-rose-900/30 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-1.5 lg:gap-2 px-3 lg:px-4 py-2.5 lg:py-2 bg-rose-100 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300 rounded-lg hover:bg-rose-200 dark:hover:bg-rose-900/30 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed text-sm min-h-[44px]"
                   >
                     {isSyncingReactions ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-rose-600"></div>
-                        Syncing...
+                        <span className="hidden sm:inline">Syncing...</span>
+                        <span className="sm:hidden">Sync...</span>
                       </>
                     ) : (
                       <>
                         <Heart className="h-4 w-4" />
-                        Sync Reaction Counts
+                        <span className="hidden sm:inline">Sync Reaction Counts</span>
+                        <span className="sm:hidden">Reactions</span>
                       </>
                     )}
                   </button>

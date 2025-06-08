@@ -33,6 +33,10 @@ const TRASH_RETENTION_PERIOD = 12 * 30 * 24 * 60 * 60 * 1000; // 12 months
 export async function createPost(postData: Omit<Post, 'id' | 'createdAt' | 'updatedAt' | 'reactions'>): Promise<string> {
   try {
     console.log('Creating post:', postData.title);
+    
+    // Use the provided date for createdAt if available, otherwise use server timestamp
+    const createdAtValue = postData.date ? postData.date : serverTimestamp();
+    
     const docRef = await addDoc(collection(db, POSTS_COLLECTION), {
       ...postData,
       reactions: {
@@ -45,7 +49,7 @@ export async function createPost(postData: Omit<Post, 'id' | 'createdAt' | 'upda
       },
       shareCount: 0,
       commentCount: 0,
-      createdAt: serverTimestamp(),
+      createdAt: createdAtValue,
       updatedAt: serverTimestamp(),
     });
     console.log('Post created successfully with ID:', docRef.id);
