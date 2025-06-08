@@ -10,6 +10,7 @@ import { Heart, Calendar, Tag, Loader2, ArrowRight } from 'lucide-react';
 import { getPosts } from '@/lib/firebase/firestore';
 import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { trackPageVisit } from '@/lib/analytics';
+import { HomeJsonLd } from '@/components/SEO/HomeJsonLd';
 
 // Feature badge component
 const FeatureBadge = ({ icon, text, delay = 0 }: { icon: React.ReactNode, text: string, delay?: number }) => {
@@ -351,7 +352,9 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-rose-50 via-white to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+    <>
+      <HomeJsonLd postsCount={filteredPosts.length} />
+      <div className="min-h-screen bg-gradient-to-br from-rose-50 via-white to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       {/* Hero Section */}
       <section className="relative py-20 md:py-32 px-4 sm:px-6 lg:px-8 overflow-hidden">
         {/* Background Effects */}
@@ -399,14 +402,14 @@ export default function Home() {
             </motion.h1>
             
             {/* Subtitle */}
-            <motion.h2 
+            <motion.p 
               className="text-2xl md:text-4xl text-gray-700 dark:text-gray-200 mb-8 font-light"
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.4 }}
             >
               A Story Every Day
-            </motion.h2>
+            </motion.p>
             
             {/* Description */}
             <motion.p 
@@ -561,7 +564,8 @@ export default function Home() {
       </AnimatePresence>
 
       {/* Posts Feed */}
-      <section id="posts-section" className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
+      <section id="posts-section" className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-20" aria-label="Daily Stories Feed">
+        <h2 className="sr-only">Daily Stories and Personal Experiences</h2>
         {/* Posts Count and Page Info */}
         {filteredPosts.length > 0 && (
           <motion.div 
@@ -647,6 +651,7 @@ export default function Home() {
           </motion.div>
         )}
       </section>
-    </div>
+      </div>
+    </>
   );
 }
