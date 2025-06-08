@@ -545,8 +545,30 @@ export async function testDatabaseConnection(): Promise<boolean> {
 export async function createComment(commentData: Omit<Comment, 'id' | 'createdAt' | 'reactions'>): Promise<string> {
   try {
     console.log('Creating comment for post:', commentData.postId);
+    
+    // Get location data if not provided
+    let locationData = {};
+    if (!commentData.ipAddress) {
+      try {
+        // Get visitor info for location tracking
+        const { getVisitorInfo } = await import('../analytics');
+        const visitorInfo = await getVisitorInfo();
+        locationData = {
+          ipAddress: visitorInfo.ipAddress,
+          city: visitorInfo.location.city,
+          country: visitorInfo.location.country,
+          isp: visitorInfo.location.isp,
+          timezone: visitorInfo.location.timezone,
+        };
+      } catch (locationError) {
+        console.warn('Could not get location data for comment:', locationError);
+        // Continue without location data
+      }
+    }
+    
     const docRef = await addDoc(collection(db, COMMENTS_COLLECTION), {
       ...commentData,
+      ...locationData,
       reactions: {
         like: 0,
         love: 0,
@@ -642,6 +664,12 @@ export async function getCommentsByPostId(postId: string): Promise<Comment[]> {
           sad: 0,
           angry: 0,
         },
+        // Include location data
+        ipAddress: data.ipAddress,
+        city: data.city,
+        country: data.country,
+        isp: data.isp,
+        timezone: data.timezone,
       };
     }) as Comment[];
     

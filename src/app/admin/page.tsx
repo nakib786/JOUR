@@ -42,7 +42,8 @@ import {
   Settings,
   RefreshCw,
   Reply,
-  Send
+  Send,
+  MapPin
 } from 'lucide-react';
 import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { AuthTurnstile, type AuthTurnstileRef } from '@/components/AuthTurnstile';
@@ -1408,6 +1409,17 @@ export default function AdminPage() {
                                 <Heart className="h-4 w-4" />
                                 {Object.values(comment.reactions).reduce((a, b) => a + b, 0)}
                               </span>
+                              {comment.city && comment.country && (
+                                <span className="flex items-center gap-1 whitespace-nowrap text-purple-600 dark:text-purple-400">
+                                  <MapPin className="h-3 w-3" />
+                                  {comment.city}, {comment.country}
+                                </span>
+                              )}
+                              {comment.isp && (
+                                <span className="text-orange-600 dark:text-orange-400 truncate">
+                                  {comment.isp}
+                                </span>
+                              )}
                               {post && (
                                 <span className="text-blue-600 dark:text-blue-400 truncate">
                                   on &ldquo;{post.title}&rdquo;

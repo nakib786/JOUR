@@ -47,25 +47,34 @@ export function AnimatedLogo({ size = 'medium', showText = true, className = '' 
       >
         <motion.div
           animate={{ 
-            scale: [1, 1.05, 1],
-            rotate: [0, 2, -2, 0]
+            scale: [1, 1.15, 1, 1.15, 1],
           }}
           transition={{ 
-            duration: 4,
+            duration: 1.2,
             repeat: Infinity,
-            ease: "easeInOut"
+            ease: [0.25, 0.46, 0.45, 0.94],
+            times: [0, 0.1, 0.3, 0.4, 1]
           }}
+          whileHover={{ 
+            scale: [1, 1.4, 1.2, 1.4, 1],
+            rotate: [0, -15, 15, -10, 0]
+          }}
+          whileTap={{ scale: 0.9 }}
         >
-          <Heart className={`${config.heart} text-rose-500 drop-shadow-lg`} />
+          <Heart className={`${config.heart} text-rose-500 drop-shadow-lg cursor-pointer`} />
         </motion.div>
         
         <motion.div
           className="absolute -top-1 -right-1"
           animate={{ 
+            x: [0, 15, 30, 15, 0, -15, -30, -15, 0],
+            y: [0, -15, 0, 15, 30, 15, 0, -15, 0],
             rotate: 360,
             scale: [1, 1.2, 1]
           }}
           transition={{ 
+            x: { duration: 4, repeat: Infinity, ease: "easeInOut" },
+            y: { duration: 4, repeat: Infinity, ease: "easeInOut" },
             rotate: { duration: 3, repeat: Infinity, ease: "linear" },
             scale: { duration: 2, repeat: Infinity, ease: "easeInOut" }
           }}

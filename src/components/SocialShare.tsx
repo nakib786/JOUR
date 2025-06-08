@@ -156,8 +156,23 @@ export function SocialShare({ title, content, url, tags = [], className = '', po
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   
-  // Generate the full URL for sharing
-  const shareUrl = url || (typeof window !== 'undefined' ? window.location.href : '');
+  // Generate the full URL for sharing with proper permalink
+  const generateShareUrl = () => {
+    if (url) return url;
+    
+    if (typeof window !== 'undefined') {
+      const baseUrl = window.location.origin;
+      if (postId) {
+        // Create a proper permalink for the post
+        return `${baseUrl}/post/${postId}`;
+      }
+      return window.location.href;
+    }
+    
+    return '';
+  };
+  
+  const shareUrl = generateShareUrl();
   
   // Clean content for sharing (remove HTML tags)
   const cleanContent = content.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();

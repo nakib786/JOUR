@@ -34,6 +34,12 @@ export interface Comment {
     sad: number;
     angry: number;
   };
+  // Location tracking data
+  ipAddress?: string;
+  city?: string;
+  country?: string;
+  isp?: string;
+  timezone?: string;
 }
 
 // Trash/Bin related interfaces

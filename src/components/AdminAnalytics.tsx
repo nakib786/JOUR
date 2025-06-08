@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Post, Comment } from '@/types';
 import { 
   BarChart3, 
@@ -17,8 +17,16 @@ import {
   ArrowUp,
   ArrowDown,
   Minus,
-  Star
+  Star,
+  Globe,
+  MapPin,
+  Users,
+  Eye,
+  ChevronDown,
+  ChevronUp,
+  Sparkles
 } from 'lucide-react';
+import { getVisitorAnalytics, getAnalyticsSummary, VisitorData } from '@/lib/analytics';
 
 interface AnalyticsProps {
   posts: Post[];
@@ -44,10 +52,124 @@ export default function AdminAnalytics({ posts, comments }: AnalyticsProps) {
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d' | '1y'>('30d');
   const [timeSeriesData, setTimeSeriesData] = useState<TimeSeriesData[]>([]);
   const [selectedMetric, setSelectedMetric] = useState<'posts' | 'comments' | 'reactions' | 'engagement'>('engagement');
+  const [visitorData, setVisitorData] = useState<VisitorData[]>([]);
+  const [visitorSummary, setVisitorSummary] = useState<{
+    totalVisits: number;
+    uniqueVisitors: number;
+    topPages: { page: string; visits: number }[];
+    topCountries: { country: string; visits: number }[];
+    topCities: { city: string; visits: number }[];
+  } | null>(null);
+  const [loadingVisitorData, setLoadingVisitorData] = useState(false);
+  
+  // Collapsible section states
+  const [isEngagementTrendsCollapsed, setIsEngagementTrendsCollapsed] = useState(false);
+  const [isContentInsightsCollapsed, setIsContentInsightsCollapsed] = useState(false);
+  const [isTopPostsCollapsed, setIsTopPostsCollapsed] = useState(false);
+  const [isActivityTimelineCollapsed, setIsActivityTimelineCollapsed] = useState(true);
+  const [isVisitorAnalyticsCollapsed, setIsVisitorAnalyticsCollapsed] = useState(true);
+
+  // Pinned states (when clicked to stay open)
+  const [isEngagementTrendsPinned, setIsEngagementTrendsPinned] = useState(false);
+  const [isContentInsightsPinned, setIsContentInsightsPinned] = useState(false);
+  const [isTopPostsPinned, setIsTopPostsPinned] = useState(false);
+  const [isActivityTimelinePinned, setIsActivityTimelinePinned] = useState(false);
+  const [isVisitorAnalyticsPinned, setIsVisitorAnalyticsPinned] = useState(false);
+
+  // Hover states
+  const [isEngagementTrendsHovered, setIsEngagementTrendsHovered] = useState(false);
+  const [isContentInsightsHovered, setIsContentInsightsHovered] = useState(false);
+  const [isTopPostsHovered, setIsTopPostsHovered] = useState(false);
+  const [isActivityTimelineHovered, setIsActivityTimelineHovered] = useState(false);
+  const [isVisitorAnalyticsHovered, setIsVisitorAnalyticsHovered] = useState(false);
+
+  // Animation ref for smooth height transitions
+  const engagementTrendsRef = useRef<HTMLDivElement>(null);
+
+  // Helper functions to determine if sections should be open
+  const shouldShowEngagementTrends = !isEngagementTrendsCollapsed || isEngagementTrendsHovered || isEngagementTrendsPinned;
+  const shouldShowContentInsights = !isContentInsightsCollapsed || isContentInsightsHovered || isContentInsightsPinned;
+  const shouldShowTopPosts = !isTopPostsCollapsed || isTopPostsHovered || isTopPostsPinned;
+  const shouldShowActivityTimeline = !isActivityTimelineCollapsed || isActivityTimelineHovered || isActivityTimelinePinned;
+  const shouldShowVisitorAnalytics = !isVisitorAnalyticsCollapsed || isVisitorAnalyticsHovered || isVisitorAnalyticsPinned;
+
+  // Click handlers with smooth animations
+  const handleEngagementTrendsClick = () => {
+    if (isEngagementTrendsPinned) {
+      setIsEngagementTrendsPinned(false);
+      setIsEngagementTrendsCollapsed(true);
+    } else {
+      setIsEngagementTrendsPinned(true);
+      setIsEngagementTrendsCollapsed(false);
+    }
+  };
+
+  const handleContentInsightsClick = () => {
+    if (isContentInsightsPinned) {
+      setIsContentInsightsPinned(false);
+      setIsContentInsightsCollapsed(true);
+    } else {
+      setIsContentInsightsPinned(true);
+      setIsContentInsightsCollapsed(false);
+    }
+  };
+
+  const handleTopPostsClick = () => {
+    if (isTopPostsPinned) {
+      setIsTopPostsPinned(false);
+      setIsTopPostsCollapsed(true);
+    } else {
+      setIsTopPostsPinned(true);
+      setIsTopPostsCollapsed(false);
+    }
+  };
+
+  const handleActivityTimelineClick = () => {
+    if (isActivityTimelinePinned) {
+      setIsActivityTimelinePinned(false);
+      setIsActivityTimelineCollapsed(true);
+    } else {
+      setIsActivityTimelinePinned(true);
+      setIsActivityTimelineCollapsed(false);
+    }
+  };
+
+  const handleVisitorAnalyticsClick = () => {
+    if (isVisitorAnalyticsPinned) {
+      setIsVisitorAnalyticsPinned(false);
+      setIsVisitorAnalyticsCollapsed(true);
+    } else {
+      setIsVisitorAnalyticsPinned(true);
+      setIsVisitorAnalyticsCollapsed(false);
+    }
+  };
 
   useEffect(() => {
     generateTimeSeriesData();
   }, [posts, comments, timeRange]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    loadVisitorAnalytics();
+  }, [timeRange]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadVisitorAnalytics = async () => {
+    try {
+      setLoadingVisitorData(true);
+      const days = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : timeRange === '90d' ? 90 : 365;
+      
+      const [visitors, summary] = await Promise.all([
+        getVisitorAnalytics({ limit: 100 }),
+        getAnalyticsSummary(days)
+      ]);
+      
+      setVisitorData(visitors);
+      setVisitorSummary(summary);
+    } catch (error) {
+      console.error('Error loading visitor analytics:', error);
+    } finally {
+      setLoadingVisitorData(false);
+    }
+  };
 
   const generateTimeSeriesData = () => {
     const days = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : timeRange === '90d' ? 90 : 365;
@@ -323,46 +445,62 @@ export default function AdminAnalytics({ posts, comments }: AnalyticsProps) {
 
   return (
     <div className="space-y-8">
-      {/* Enhanced Time Range Selector */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 rounded-2xl shadow-lg p-6 border border-blue-100 dark:border-gray-600">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-          <div>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-              <BarChart3 className="h-8 w-8 text-blue-600" />
-              Advanced Analytics Dashboard
-            </h3>
-            <p className="text-gray-600 dark:text-gray-300 mt-2">
-              Comprehensive insights into your content performance and user engagement
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { value: '7d', label: '7 Days', icon: Calendar },
-              { value: '30d', label: '30 Days', icon: Calendar },
-              { value: '90d', label: '90 Days', icon: Calendar },
-              { value: '1y', label: '1 Year', icon: Calendar }
-            ].map((option) => {
-              const Icon = option.icon;
-              return (
-                <button
-                  key={option.value}
-                  onClick={() => setTimeRange(option.value as '7d' | '30d' | '90d' | '1y')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 whitespace-nowrap ${
-                    timeRange === option.value
-                      ? 'bg-blue-600 text-white shadow-lg transform scale-105'
-                      : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-gray-600 shadow-md'
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {option.label}
-                </button>
-              );
-            })}
+      {/* Modern Analytics Header */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-700 rounded-3xl shadow-xl border border-white/20 dark:border-gray-700/50 backdrop-blur-sm">
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 to-purple-600/5 dark:from-blue-400/5 dark:to-purple-400/5"></div>
+        <div className="relative p-8">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl blur-lg opacity-30"></div>
+                  <div className="relative bg-gradient-to-r from-blue-600 to-purple-600 p-3 rounded-2xl">
+                    <Sparkles className="h-8 w-8 text-white" />
+                  </div>
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
+                    Analytics Dashboard
+                  </h1>
+                  <p className="text-gray-600 dark:text-gray-400 text-lg font-medium">
+                    Real-time insights & performance metrics
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {[
+                { value: '7d', label: '7D', icon: Calendar, color: 'from-emerald-500 to-teal-600' },
+                { value: '30d', label: '30D', icon: Calendar, color: 'from-blue-500 to-cyan-600' },
+                { value: '90d', label: '90D', icon: Calendar, color: 'from-purple-500 to-pink-600' },
+                { value: '1y', label: '1Y', icon: Calendar, color: 'from-orange-500 to-red-600' }
+              ].map((option) => {
+                const Icon = option.icon;
+                const isActive = timeRange === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => setTimeRange(option.value as '7d' | '30d' | '90d' | '1y')}
+                    className={`group relative flex items-center gap-2 px-6 py-3 rounded-2xl text-sm font-semibold transition-all duration-300 transform hover:scale-105 ${
+                      isActive
+                        ? `bg-gradient-to-r ${option.color} text-white shadow-lg shadow-blue-500/25`
+                        : 'bg-white/70 dark:bg-gray-800/70 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700 shadow-md backdrop-blur-sm border border-white/50 dark:border-gray-600/50'
+                    }`}
+                  >
+                    <Icon className={`h-4 w-4 transition-transform duration-300 ${isActive ? 'rotate-12' : 'group-hover:rotate-6'}`} />
+                    {option.label}
+                    {isActive && (
+                      <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent rounded-2xl"></div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Enhanced Key Metrics Grid */}
+      {/* Modern Key Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         {[
           {
@@ -371,8 +509,11 @@ export default function AdminAnalytics({ posts, comments }: AnalyticsProps) {
             change: metrics.recentPosts,
             changeLabel: 'this week',
             icon: BarChart3,
-            color: 'blue',
-            gradient: 'from-blue-500 to-blue-600'
+            gradient: 'from-blue-500 via-blue-600 to-blue-700',
+            bgGradient: 'from-blue-50 to-blue-100',
+            darkBgGradient: 'from-blue-950/50 to-blue-900/50',
+            changeColor: 'text-blue-700 dark:text-blue-300',
+            changeBg: 'bg-blue-100 dark:bg-blue-900/30'
           },
           {
             title: 'Total Comments',
@@ -380,8 +521,11 @@ export default function AdminAnalytics({ posts, comments }: AnalyticsProps) {
             change: metrics.recentComments,
             changeLabel: 'this week',
             icon: MessageSquare,
-            color: 'green',
-            gradient: 'from-green-500 to-green-600'
+            gradient: 'from-emerald-500 via-emerald-600 to-emerald-700',
+            bgGradient: 'from-emerald-50 to-emerald-100',
+            darkBgGradient: 'from-emerald-950/50 to-emerald-900/50',
+            changeColor: 'text-emerald-700 dark:text-emerald-300',
+            changeBg: 'bg-emerald-100 dark:bg-emerald-900/30'
           },
           {
             title: 'Total Reactions',
@@ -389,8 +533,11 @@ export default function AdminAnalytics({ posts, comments }: AnalyticsProps) {
             change: metrics.recentReactions,
             changeLabel: 'this week',
             icon: Heart,
-            color: 'rose',
-            gradient: 'from-rose-500 to-rose-600'
+            gradient: 'from-rose-500 via-rose-600 to-rose-700',
+            bgGradient: 'from-rose-50 to-rose-100',
+            darkBgGradient: 'from-rose-950/50 to-rose-900/50',
+            changeColor: 'text-rose-700 dark:text-rose-300',
+            changeBg: 'bg-rose-100 dark:bg-rose-900/30'
           },
           {
             title: 'Engagement Rate',
@@ -398,153 +545,283 @@ export default function AdminAnalytics({ posts, comments }: AnalyticsProps) {
             change: metrics.avgEngagementPerPost,
             changeLabel: 'avg per post',
             icon: TrendingUp,
-            color: 'purple',
-            gradient: 'from-purple-500 to-purple-600'
+            gradient: 'from-purple-500 via-purple-600 to-purple-700',
+            bgGradient: 'from-purple-50 to-purple-100',
+            darkBgGradient: 'from-purple-950/50 to-purple-900/50',
+            changeColor: 'text-purple-700 dark:text-purple-300',
+            changeBg: 'bg-purple-100 dark:bg-purple-900/30'
           }
         ].map((metric, index) => {
           const Icon = metric.icon;
           return (
-            <div key={index} className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-              <div className="flex items-center justify-between mb-4">
-                <div className={`p-3 rounded-xl bg-gradient-to-r ${metric.gradient} shadow-lg`}>
-                  <Icon className="h-6 w-6 text-white" />
+            <div 
+              key={index} 
+              className={`group relative overflow-hidden bg-gradient-to-br ${metric.bgGradient} dark:${metric.darkBgGradient} backdrop-blur-sm rounded-3xl shadow-lg border border-white/50 dark:border-gray-700/50 hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2 hover:scale-[1.02]`}
+              style={{
+                animationDelay: `${index * 100}ms`,
+                animation: 'fadeInUp 0.6s ease-out forwards'
+              }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent dark:from-white/5 dark:to-transparent"></div>
+              <div className="relative p-6">
+                <div className="flex items-start justify-between mb-6">
+                  <div className="relative">
+                    <div className={`absolute inset-0 bg-gradient-to-r ${metric.gradient} rounded-2xl blur-lg opacity-30 group-hover:opacity-50 transition-opacity duration-300`}></div>
+                    <div className={`relative bg-gradient-to-r ${metric.gradient} p-4 rounded-2xl shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+                      <Icon className="h-7 w-7 text-white" />
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent mb-1">
+                      {metric.value}
+                    </p>
+                    <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                      {metric.title}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-3xl font-bold text-gray-900 dark:text-white">{metric.value}</p>
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{metric.title}</p>
+                <div className="flex items-center justify-between">
+                  <div className={`flex items-center gap-2 px-3 py-2 rounded-full ${metric.changeBg} backdrop-blur-sm`}>
+                    <TrendingUp className={`h-4 w-4 ${metric.changeColor}`} />
+                    <span className={`text-sm font-bold ${metric.changeColor}`}>
+                      +{metric.change}
+                    </span>
+                  </div>
+                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    {metric.changeLabel}
+                  </span>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-${metric.color}-100 text-${metric.color}-800 dark:bg-${metric.color}-900/20 dark:text-${metric.color}-400`}>
-                  +{metric.change} {metric.changeLabel}
-                </span>
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* Engagement Trends */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700">
-        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-3">
-          <Activity className="h-6 w-6 text-indigo-600" />
-          Engagement Trends
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-          {engagementTrends.map((trend, index) => (
-            <div key={index} className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{trend.period}</p>
-                <div className="flex items-center gap-1">
-                  {getTrendIcon(trend.trend)}
-                  <span className={`text-sm font-medium ${
-                    trend.trend === 'up' ? 'text-green-600' : 
-                    trend.trend === 'down' ? 'text-red-600' : 'text-gray-600'
-                  }`}>
-                    {trend.change.toFixed(1)}%
-                  </span>
+      <style jsx>{`
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
+
+      {/* Modern Engagement Trends */}
+      <div 
+        className="group relative overflow-hidden bg-gradient-to-br from-white via-indigo-50/30 to-purple-50/30 dark:from-gray-800 dark:via-indigo-950/20 dark:to-purple-950/20 rounded-3xl shadow-lg border border-white/50 dark:border-gray-700/50 backdrop-blur-sm hover:shadow-xl transition-all duration-500"
+        onMouseEnter={() => setIsEngagementTrendsHovered(true)}
+        onMouseLeave={() => setIsEngagementTrendsHovered(false)}
+      >
+        <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent dark:from-white/5 dark:to-transparent"></div>
+        <div className="relative p-6">
+          <button
+            onClick={handleEngagementTrendsClick}
+            className="w-full flex items-center justify-between mb-6 hover:bg-white/50 dark:hover:bg-gray-700/50 rounded-2xl p-4 -m-2 transition-all duration-300 group/button"
+          >
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl blur-lg opacity-30 group-hover:opacity-50 transition-opacity duration-300"></div>
+                <div className="relative bg-gradient-to-r from-indigo-500 to-purple-600 p-3 rounded-xl shadow-lg group-hover:scale-110 transition-transform duration-300">
+                  <Activity className="h-6 w-6 text-white" />
                 </div>
               </div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{trend.value}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">total engagements</p>
+              <div className="text-left">
+                <h3 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
+                  Engagement Trends
+                </h3>
+                {isEngagementTrendsPinned && (
+                  <span className="inline-flex items-center gap-1 text-xs bg-gradient-to-r from-blue-500 to-purple-600 text-white px-3 py-1 rounded-full font-medium mt-1">
+                    <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                    Pinned
+                  </span>
+                )}
+              </div>
             </div>
-          ))}
-        </div>
+            <div className="flex items-center gap-2">
+              {shouldShowEngagementTrends ? (
+                <ChevronUp className="h-5 w-5 text-gray-500 group-hover/button:text-indigo-600 transition-colors duration-300" />
+              ) : (
+                <ChevronDown className="h-5 w-5 text-gray-500 group-hover/button:text-indigo-600 transition-colors duration-300" />
+              )}
+            </div>
+          </button>
+          <div 
+            ref={engagementTrendsRef}
+            className={`overflow-hidden transition-all duration-500 ease-in-out ${
+              shouldShowEngagementTrends ? 'opacity-100 max-h-[1000px]' : 'opacity-0 max-h-0'
+            }`}
+            style={{
+              height: shouldShowEngagementTrends ? 'auto' : '0px'
+            }}
+          >
+            {shouldShowEngagementTrends && (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+            {engagementTrends.map((trend, index) => (
+              <div key={index} className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{trend.period}</p>
+                  <div className="flex items-center gap-1">
+                    {getTrendIcon(trend.trend)}
+                    <span className={`text-sm font-medium ${
+                      trend.trend === 'up' ? 'text-green-600' : 
+                      trend.trend === 'down' ? 'text-red-600' : 'text-gray-600'
+                    }`}>
+                      {trend.change.toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{trend.value}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">total engagements</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Content Insights */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Target className="h-5 w-5 text-orange-600" />
-            Content Insights
+      <div 
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700"
+        onMouseEnter={() => setIsContentInsightsHovered(true)}
+        onMouseLeave={() => setIsContentInsightsHovered(false)}
+      >
+        <button
+          onClick={handleContentInsightsClick}
+          className="w-full flex items-center justify-between mb-6 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg p-2 -m-2 transition-colors"
+        >
+          <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+            <Target className="h-6 w-6 text-orange-600" />
+            Content Insights & Analysis
+            {isContentInsightsPinned && (
+              <span className="text-xs bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-400 px-2 py-1 rounded-full">
+                Pinned
+              </span>
+            )}
           </h3>
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Average Post Length</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{contentInsights.avgPostLength}</p>
-              <p className="text-xs text-gray-500">characters</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Best Performing Length</p>
-              <p className="text-lg font-semibold text-orange-600">{contentInsights.bestLengthRange}</p>
-              <p className="text-xs text-gray-500">{contentInsights.bestLengthEngagement} avg engagement</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Most Active Day</p>
-              <p className="text-lg font-semibold text-blue-600">{metrics.mostActiveDayName}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Peak Posting Hour</p>
-              <p className="text-lg font-semibold text-green-600">{metrics.peakHourFormatted}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Enhanced Mood Distribution */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <PieChart className="h-5 w-5 text-purple-600" />
-            Mood Distribution
-          </h3>
-          <div className="space-y-3">
-            {moodDistribution.map(({ mood, count, percentage, color }) => (
-              <div key={mood} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div 
-                    className="w-4 h-4 rounded-full" 
-                    style={{ backgroundColor: color }}
-                  />
-                  <span className="text-gray-900 dark:text-white capitalize font-medium">{mood}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-20 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                    <div 
-                      className="h-2 rounded-full transition-all duration-500" 
-                      style={{ 
-                        width: `${percentage}%`,
-                        backgroundColor: color
-                      }}
-                    />
-                  </div>
-                  <span className="text-sm text-gray-600 dark:text-gray-400 w-16 text-right">
-                    {count} ({percentage}%)
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Enhanced Top Tags */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Tag className="h-5 w-5 text-emerald-600" />
-            Top Tags
-          </h3>
-          <div className="space-y-3 max-h-64 overflow-y-auto">
-            {tagAnalytics.slice(0, 8).map(({ tag, count, percentage, avgEngagement }) => (
-              <div key={tag} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+          {shouldShowContentInsights ? (
+            <ChevronUp className="h-5 w-5 text-gray-500" />
+          ) : (
+            <ChevronDown className="h-5 w-5 text-gray-500" />
+          )}
+        </button>
+        {shouldShowContentInsights && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4">
+              <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <Target className="h-5 w-5 text-orange-600" />
+                Content Insights
+              </h4>
+              <div className="space-y-4">
                 <div>
-                  <span className="text-gray-900 dark:text-white font-medium">#{tag}</span>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{avgEngagement} avg engagement</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Average Post Length</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{contentInsights.avgPostLength}</p>
+                  <p className="text-xs text-gray-500">characters</p>
                 </div>
-                <div className="text-right">
-                  <span className="text-sm font-semibold text-emerald-600">{count}</span>
-                  <p className="text-xs text-gray-500">({percentage}%)</p>
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Best Performing Length</p>
+                  <p className="text-lg font-semibold text-orange-600">{contentInsights.bestLengthRange}</p>
+                  <p className="text-xs text-gray-500">{contentInsights.bestLengthEngagement} avg engagement</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Most Active Day</p>
+                  <p className="text-lg font-semibold text-blue-600">{metrics.mostActiveDayName}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Peak Posting Hour</p>
+                  <p className="text-lg font-semibold text-green-600">{metrics.peakHourFormatted}</p>
                 </div>
               </div>
-            ))}
+            </div>
+
+            {/* Enhanced Mood Distribution */}
+            <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4">
+              <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <PieChart className="h-5 w-5 text-purple-600" />
+                Mood Distribution
+              </h4>
+              <div className="space-y-3">
+                {moodDistribution.map(({ mood, count, percentage, color }) => (
+                  <div key={mood} className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div 
+                        className="w-4 h-4 rounded-full" 
+                        style={{ backgroundColor: color }}
+                      />
+                      <span className="text-gray-900 dark:text-white capitalize font-medium">{mood}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-20 bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                        <div 
+                          className="h-2 rounded-full transition-all duration-500" 
+                          style={{ 
+                            width: `${percentage}%`,
+                            backgroundColor: color
+                          }}
+                        />
+                      </div>
+                      <span className="text-sm text-gray-600 dark:text-gray-400 w-16 text-right">
+                        {count} ({percentage}%)
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Enhanced Top Tags */}
+            <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4">
+              <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <Tag className="h-5 w-5 text-emerald-600" />
+                Top Tags
+              </h4>
+              <div className="space-y-3 max-h-64 overflow-y-auto">
+                {tagAnalytics.slice(0, 8).map(({ tag, count, percentage, avgEngagement }) => (
+                  <div key={tag} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                    <div>
+                      <span className="text-gray-900 dark:text-white font-medium">#{tag}</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{avgEngagement} avg engagement</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-semibold text-emerald-600">{count}</span>
+                      <p className="text-xs text-gray-500">({percentage}%)</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Enhanced Top Performing Posts */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700">
-        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-3">
-          <Star className="h-6 w-6 text-yellow-600" />
-          Top Performing Posts
-        </h3>
+      <div 
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700"
+        onMouseEnter={() => setIsTopPostsHovered(true)}
+        onMouseLeave={() => setIsTopPostsHovered(false)}
+      >
+        <button
+          onClick={handleTopPostsClick}
+          className="w-full flex items-center justify-between mb-6 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg p-2 -m-2 transition-colors"
+        >
+          <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+            <Star className="h-6 w-6 text-yellow-600" />
+            Top Performing Posts
+            {isTopPostsPinned && (
+              <span className="text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-600 dark:text-yellow-400 px-2 py-1 rounded-full">
+                Pinned
+              </span>
+            )}
+          </h3>
+          {shouldShowTopPosts ? (
+            <ChevronUp className="h-5 w-5 text-gray-500" />
+          ) : (
+            <ChevronDown className="h-5 w-5 text-gray-500" />
+          )}
+        </button>
+        {shouldShowTopPosts && (
         <div className="space-y-4">
           {topPosts.slice(0, 8).map((post, index) => (
             <div key={post.id} className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
@@ -578,58 +855,259 @@ export default function AdminAnalytics({ posts, comments }: AnalyticsProps) {
               </div>
             </div>
           ))}
+            </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Activity Timeline */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+      <div 
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700"
+        onMouseEnter={() => setIsActivityTimelineHovered(true)}
+        onMouseLeave={() => setIsActivityTimelineHovered(false)}
+      >
+        <button
+          onClick={handleActivityTimelineClick}
+          className="w-full flex items-center justify-between mb-6 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg p-2 -m-2 transition-colors"
+        >
           <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
             <Clock className="h-6 w-6 text-indigo-600" />
             Activity Timeline ({timeRange})
+            {isActivityTimelinePinned && (
+              <span className="text-xs bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 px-2 py-1 rounded-full">
+                Pinned
+              </span>
+            )}
           </h3>
-          <div className="flex gap-2">
-            {['posts', 'comments', 'reactions', 'engagement'].map((metric) => (
-              <button
-                key={metric}
-                                 onClick={() => setSelectedMetric(metric as 'posts' | 'comments' | 'reactions' | 'engagement')}
-                className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                  selectedMetric === metric
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                {metric.charAt(0).toUpperCase() + metric.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="space-y-2 max-h-80 overflow-y-auto">
-          {timeSeriesData.slice(-14).map((data) => {
-            const value = data[selectedMetric];
-            const maxValue = Math.max(...timeSeriesData.map(d => d[selectedMetric]));
-            const percentage = maxValue > 0 ? (value / maxValue) * 100 : 0;
-            
-            return (
-              <div key={data.date} className="flex items-center gap-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400 w-24">
-                  {new Date(data.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                </span>
-                <div className="flex-1 flex items-center gap-3">
-                  <div className="flex-1 bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                    <div 
-                      className="bg-gradient-to-r from-indigo-500 to-purple-600 h-2 rounded-full transition-all duration-500"
-                      style={{ width: `${percentage}%` }}
-                    />
+          {shouldShowActivityTimeline ? (
+            <ChevronUp className="h-5 w-5 text-gray-500" />
+          ) : (
+            <ChevronDown className="h-5 w-5 text-gray-500" />
+          )}
+        </button>
+        {shouldShowActivityTimeline && (
+          <div>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+              <div className="flex gap-2">
+                {['posts', 'comments', 'reactions', 'engagement'].map((metric) => (
+                  <button
+                    key={metric}
+                    onClick={() => setSelectedMetric(metric as 'posts' | 'comments' | 'reactions' | 'engagement')}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                      selectedMetric === metric
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    {metric.charAt(0).toUpperCase() + metric.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {timeSeriesData.slice(-14).map((data) => {
+                const value = data[selectedMetric];
+                const maxValue = Math.max(...timeSeriesData.map(d => d[selectedMetric]));
+                const percentage = maxValue > 0 ? (value / maxValue) * 100 : 0;
+                
+                return (
+                  <div key={data.date} className="flex items-center gap-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400 w-24">
+                      {new Date(data.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </span>
+                    <div className="flex-1 flex items-center gap-3">
+                      <div className="flex-1 bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                        <div 
+                          className="bg-gradient-to-r from-indigo-500 to-purple-600 h-2 rounded-full transition-all duration-500"
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white w-8 text-right">
+                        {value}
+                      </span>
+                    </div>
                   </div>
-                  <span className="text-sm font-semibold text-gray-900 dark:text-white w-8 text-right">
-                    {value}
-                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Visitor Analytics Section */}
+      <div 
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700"
+        onMouseEnter={() => setIsVisitorAnalyticsHovered(true)}
+        onMouseLeave={() => setIsVisitorAnalyticsHovered(false)}
+      >
+        <button
+          onClick={handleVisitorAnalyticsClick}
+          className="w-full flex items-center justify-between mb-6 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg p-2 -m-2 transition-colors"
+        >
+          <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+            <Globe className="h-6 w-6 text-blue-600" />
+            Visitor Analytics
+            {isVisitorAnalyticsPinned && (
+              <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 px-2 py-1 rounded-full">
+                Pinned
+              </span>
+            )}
+          </h3>
+          {shouldShowVisitorAnalytics ? (
+            <ChevronUp className="h-5 w-5 text-gray-500" />
+          ) : (
+            <ChevronDown className="h-5 w-5 text-gray-500" />
+          )}
+        </button>
+        {shouldShowVisitorAnalytics && (
+          <div>
+            {loadingVisitorData ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        ) : visitorSummary ? (
+          <div className="space-y-6">
+            {/* Visitor Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-4 text-white">
+                <div className="flex items-center gap-3">
+                  <Eye className="h-8 w-8" />
+                  <div>
+                    <p className="text-blue-100 text-sm">Total Visits</p>
+                    <p className="text-2xl font-bold">{visitorSummary.totalVisits}</p>
+                  </div>
                 </div>
               </div>
-            );
-          })}
-        </div>
+              
+              <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-xl p-4 text-white">
+                <div className="flex items-center gap-3">
+                  <Users className="h-8 w-8" />
+                  <div>
+                    <p className="text-green-100 text-sm">Unique Visitors</p>
+                    <p className="text-2xl font-bold">{visitorSummary.uniqueVisitors}</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl p-4 text-white">
+                <div className="flex items-center gap-3">
+                  <BarChart3 className="h-8 w-8" />
+                  <div>
+                    <p className="text-purple-100 text-sm">Top Page</p>
+                    <p className="text-lg font-bold truncate">
+                      {visitorSummary.topPages[0]?.page || 'N/A'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl p-4 text-white">
+                <div className="flex items-center gap-3">
+                  <MapPin className="h-8 w-8" />
+                  <div>
+                    <p className="text-orange-100 text-sm">Top Country</p>
+                    <p className="text-lg font-bold truncate">
+                      {visitorSummary.topCountries[0]?.country || 'N/A'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Top Pages, Countries, and Cities */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Top Pages</h4>
+                <div className="space-y-2">
+                  {visitorSummary.topPages.slice(0, 5).map((page, index) => (
+                    <div key={page.page} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <span className="w-6 h-6 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-sm font-bold">
+                          {index + 1}
+                        </span>
+                        <span className="text-gray-900 dark:text-white font-medium truncate">
+                          {page.page === '/' ? 'Home' : page.page}
+                        </span>
+                      </div>
+                      <span className="text-sm font-semibold text-blue-600">{page.visits}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Top Countries</h4>
+                <div className="space-y-2">
+                  {visitorSummary.topCountries.slice(0, 5).map((country, index) => (
+                    <div key={country.country} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <span className="w-6 h-6 bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center text-sm font-bold">
+                          {index + 1}
+                        </span>
+                        <span className="text-gray-900 dark:text-white font-medium">{country.country}</span>
+                      </div>
+                      <span className="text-sm font-semibold text-green-600">{country.visits}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Top Cities</h4>
+                <div className="space-y-2">
+                  {visitorSummary.topCities.slice(0, 5).map((city, index) => (
+                    <div key={city.city} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <span className="w-6 h-6 bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400 rounded-full flex items-center justify-center text-sm font-bold">
+                          {index + 1}
+                        </span>
+                        <span className="text-gray-900 dark:text-white font-medium">{city.city}</span>
+                      </div>
+                      <span className="text-sm font-semibold text-purple-600">{city.visits}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Visitors */}
+            <div>
+              <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Recent Visitors</h4>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {visitorData.slice(0, 10).map((visitor, index) => (
+                  <div key={visitor.id || index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div className="flex items-center gap-4">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <div>
+                        <p className="text-gray-900 dark:text-white font-medium">
+                          {visitor.city || 'Unknown'}, {visitor.country || 'Unknown'}
+                        </p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {visitor.page} • {visitor.isp || 'Unknown ISP'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        {new Date(visitor.timestamp).toLocaleDateString()}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(visitor.timestamp).toLocaleTimeString()}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <p className="text-gray-600 dark:text-gray-400">No visitor data available</p>
+          </div>
+        )}
+          </div>
+        )}
       </div>
     </div>
   );

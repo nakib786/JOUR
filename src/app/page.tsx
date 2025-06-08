@@ -6,9 +6,10 @@ import { PostCard } from '@/components/PostCard';
 import { FilterPanel } from '@/components/FilterPanel';
 import { Pagination } from '@/components/Pagination';
 import { Post, FilterOptions } from '@/types';
-import { Heart, Calendar, Tag, Loader2, ChevronRight, ArrowRight } from 'lucide-react';
+import { Heart, Calendar, Tag, Loader2, ArrowRight } from 'lucide-react';
 import { getPosts } from '@/lib/firebase/firestore';
 import { AnimatedLogo } from '@/components/AnimatedLogo';
+import { trackPageVisit } from '@/lib/analytics';
 
 // Feature badge component
 const FeatureBadge = ({ icon, text, delay = 0 }: { icon: React.ReactNode, text: string, delay?: number }) => {
@@ -60,6 +61,9 @@ export default function Home() {
         const fetchedPosts = await getPosts({ limitCount: 50 });
         setPosts(fetchedPosts);
         setFilteredPosts(fetchedPosts);
+        
+        // Track page visit
+        trackPageVisit('/');
       } catch (err) {
         console.error('Error loading posts:', err);
         setError('Failed to load posts. Please try again later.');
@@ -432,21 +436,47 @@ export default function Home() {
                 text="Filter by Tags" 
                 delay={0.2}
               />
-              <FeatureBadge 
-                icon={<Heart className="h-5 w-5 text-rose-500" />} 
-                text="Anonymous Reactions" 
-                delay={0.3}
-              />
+              <motion.div
+                className="inline-flex items-center rounded-full border border-rose-200/30 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm px-4 py-2 text-sm gap-2 shadow-lg hover:shadow-xl transition-all duration-300"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+                whileHover={{ 
+                  scale: 1.05, 
+                  boxShadow: "0 0 25px rgba(244, 63, 94, 0.3)",
+                  borderColor: "rgba(244, 63, 94, 0.5)"
+                }}
+              >
+                <motion.div
+                  whileHover={{ 
+                    scale: [1, 1.3, 1.1, 1.3, 1],
+                    rotate: [0, -10, 10, -5, 0]
+                  }}
+                  transition={{ 
+                    duration: 0.6,
+                    ease: "easeInOut"
+                  }}
+                >
+                  <Heart className="h-5 w-5 text-rose-500" />
+                </motion.div>
+                <span className="font-medium">Anonymous Reactions</span>
+              </motion.div>
             </motion.div>
 
-            {/* CTA Buttons */}
+            {/* CTA Button */}
             <motion.div 
-              className="flex flex-col sm:flex-row justify-center gap-4 mb-16"
+              className="flex justify-center mb-16"
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 1 }}
             >
               <motion.button
+                onClick={() => {
+                  const postsSection = document.getElementById('posts-section');
+                  if (postsSection) {
+                    postsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }}
                 className="group bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white px-8 py-4 rounded-full font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -457,15 +487,6 @@ export default function Home() {
                 >
                   <ArrowRight className="h-5 w-5" />
                 </motion.div>
-              </motion.button>
-              
-              <motion.button
-                className="group border-2 border-rose-500 text-rose-500 hover:bg-rose-500 hover:text-white px-8 py-4 rounded-full font-semibold text-lg transition-all duration-300 flex items-center justify-center gap-2"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                Explore Categories
-                <ChevronRight className="h-5 w-5 group-hover:translate-x-1 transition-transform duration-300" />
               </motion.button>
             </motion.div>
           </motion.div>

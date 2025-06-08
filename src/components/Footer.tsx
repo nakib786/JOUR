@@ -170,7 +170,32 @@ export function Footer() {
 
   return (
     <footer className="bg-gradient-to-r from-rose-50 via-pink-50 to-rose-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 border-t border-rose-100 dark:border-gray-700 transition-colors duration-300">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative">
+        {/* Logo Section - Left Side, 2 inches down */}
+        <div className="absolute left-4 sm:left-6 lg:left-8 top-32 hidden md:block">
+          <div className="transition-transform duration-500 ease-out hover:scale-150 hover:rotate-12">
+            <AnimatedLogo size="large" />
+          </div>
+        </div>
+
+        {/* Theme Toggle - Top Right of Footer */}
+        <div className="absolute right-4 sm:right-6 lg:right-8 top-12 hidden md:flex items-center space-x-3">
+          <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+            Theme
+          </span>
+          <button
+            onClick={toggleDarkMode}
+            className="p-3 rounded-full bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-md hover:shadow-lg border border-gray-200 dark:border-gray-600 focus:outline-none focus:ring-4 focus:ring-rose-200 dark:focus:ring-rose-800"
+            aria-label="Toggle dark mode"
+          >
+            {isDark ? (
+              <Sun className="h-5 w-5" />
+            ) : (
+              <Moon className="h-5 w-5" />
+            )}
+          </button>
+        </div>
+
         {/* Quote Section */}
         <div className="text-center mb-12">
           <div className="flex justify-center mb-6">
@@ -201,13 +226,15 @@ export function Footer() {
         </div>
 
         {/* Main Footer Content */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-center mb-8">
-          {/* Logo Section */}
-          <div className="flex justify-center md:justify-start">
-            <AnimatedLogo size="medium" />
+        <div className="mb-6">
+          {/* Mobile Logo - Centered for mobile */}
+          <div className="flex justify-center items-center md:hidden mb-8">
+            <div className="transition-transform duration-500 ease-out hover:scale-150 hover:rotate-12 transform -translate-y-6">
+              <AnimatedLogo size="large" />
+            </div>
           </div>
 
-          {/* Subscribe Button - Center */}
+          {/* Subscribe Button - Centered */}
           <div className="flex justify-center">
             <button 
               onClick={() => setIsSubscriptionModalOpen(true)}
@@ -217,9 +244,9 @@ export function Footer() {
             </button>
           </div>
 
-          {/* Theme Toggle - Right */}
-          <div className="flex items-center justify-center md:justify-end space-x-3">
-            <span className="text-sm text-gray-600 dark:text-gray-400 hidden sm:block font-medium">
+          {/* Mobile Theme Toggle - Centered below subscribe button for mobile only */}
+          <div className="flex justify-center items-center space-x-3 mt-8 md:hidden">
+            <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">
               Theme
             </span>
             <button
